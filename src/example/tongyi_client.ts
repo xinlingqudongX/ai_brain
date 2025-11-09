@@ -237,8 +237,3 @@ export class TongyiClient {
         return match ? match[1] : null;
     }
 }
-
-// 如果在Node.js环境中使用，需要导出
-if (typeof module !== "undefined" && module.exports) {
-    module.exports = TongyiClient;
-}

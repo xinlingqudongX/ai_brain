@@ -1,9 +1,9 @@
-import {
+import type {
     AIPlatformClientInterface,
     ClientCredentials,
     SendMessageOptions,
     AIPlatformType,
-} from "../types/ai_client_types";
+} from "../../types/ai_client_types";
 
 /**
  * 基础AI客户端抽象类

@@ -1,0 +1,40 @@
+{
+    // Visit https://aka.ms/tsconfig to read more about this file
+    "compilerOptions": {
+        // File Layout
+        "rootDir": "./src",
+        "outDir": "./dist",
+        "module": "ESNext",
+        "moduleResolution": "node10",
+        "target": "esnext",
+        "types": ["node"],
+        "lib": ["esnext"],
+        // Other Outputs
+        "sourceMap": true,
+        "declaration": true,
+        "declarationMap": true,
+
+        // Stricter Typechecking Options
+        "noUncheckedIndexedAccess": true,
+        "exactOptionalPropertyTypes": true,
+
+        // Recommended Options
+        "strict": true,
+        "jsx": "react-jsx",
+        "verbatimModuleSyntax": true,
+        "isolatedModules": true,
+        "noUncheckedSideEffectImports": true,
+        "moduleDetection": "force",
+        "skipLibCheck": true,
+
+        // ESM-specific options
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "forceConsistentCasingInFileNames": true,
+
+        // Deprecation warnings
+        "ignoreDeprecations": "6.0"
+    },
+    "include": ["src/**/*"],
+    "exclude": ["src/example/**/*", "src/api/*example*.ts"]
+}

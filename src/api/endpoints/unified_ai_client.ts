@@ -1,9 +1,9 @@
-import {
+import type {
     AIPlatformType,
     ClientCredentials,
     SendMessageOptions,
-} from "../types/ai_client_types";
-import { AIPlatformClientInterface } from "../types/ai_client_types";
+} from "../../types/ai_client_types";
+import type { AIPlatformClientInterface } from "../../types/ai_client_types";
 import { AIClientFactory } from "./ai_client_factory";
 
 /**
