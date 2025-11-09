@@ -3,7 +3,7 @@ import type {
     ClientCredentials,
     SendMessageOptions,
     AIPlatformType,
-} from "../../types/ai_client_types";
+} from "../../types/ai_client_types.js";
 
 /**
  * 基础AI客户端抽象类

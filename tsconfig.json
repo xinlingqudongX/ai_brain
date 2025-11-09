@@ -4,8 +4,8 @@
         // File Layout
         "rootDir": "./src",
         "outDir": "./dist",
-        "module": "ESNext",
-        "moduleResolution": "node10",
+        "module": "node16",
+        "moduleResolution": "node16",
         "target": "esnext",
         "types": ["node"],
         "lib": ["esnext"],
@@ -33,7 +33,7 @@
         "forceConsistentCasingInFileNames": true,
 
         // Deprecation warnings
-        "ignoreDeprecations": "6.0"
+        "ignoreDeprecations": "5.0"
     },
     "include": ["src/**/*"],
     "exclude": ["src/example/**/*", "src/api/*example*.ts"]

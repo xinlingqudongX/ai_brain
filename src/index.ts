@@ -9,23 +9,23 @@ export type {
   ClientCredentials, 
   SendMessageOptions, 
   AIPlatformClientInterface 
-} from './types/ai_client_types';
+} from './types/ai_client_types.js';
 
 // 导出枚举值
-export { AIPlatformType } from './types/ai_client_types';
+export { AIPlatformType } from './types/ai_client_types.js';
 
 // 导出核心类
-export { BaseAIClient } from './api/endpoints/base_ai_client';
-export { AIClientFactory } from './api/endpoints/ai_client_factory';
-export { UnifiedAIClient } from './api/endpoints/unified_ai_client';
+export { BaseAIClient } from './api/endpoints/base_ai_client.js';
+export { AIClientFactory } from './api/endpoints/ai_client_factory.js';
+export { UnifiedAIClient } from './api/endpoints/unified_ai_client.js';
 
 // 导出客户端实现
-export { ChatGLMClient } from './clients/chatglm_client';
-export { TongyiClient } from './clients/tongyi_client';
-export { BaiduClient } from './clients/baidu_client';
-export { DeepSeekClient } from './clients/deepseek_client';
-export { QwenClient } from './clients/qwen_client';
+export { ChatGLMClient } from './clients/chatglm_client.js';
+export { TongyiClient } from './clients/tongyi_client.js';
+export { BaiduClient } from './clients/baidu_client.js';
+export { DeepSeekClient } from './clients/deepseek_client.js';
+export { QwenClient } from './clients/qwen_client.js';
 
 // 默认导出统一客户端
-import { UnifiedAIClient } from './api/endpoints/unified_ai_client';
+import { UnifiedAIClient } from './api/endpoints/unified_ai_client.js';
 export default UnifiedAIClient;

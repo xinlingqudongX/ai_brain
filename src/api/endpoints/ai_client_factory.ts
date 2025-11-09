@@ -1,11 +1,11 @@
-import type { ClientCredentials } from "../../types/ai_client_types";
-import type { AIPlatformClientInterface } from "../../types/ai_client_types";
-import { AIPlatformType } from "../../types/ai_client_types";
-import { ChatGLMClient } from "../../clients/chatglm_client";
-import { TongyiClient } from "../../clients/tongyi_client";
-import { BaiduClient } from "../../clients/baidu_client";
-import { DeepSeekClient } from "../../clients/deepseek_client";
-import { QwenClient } from "../../clients/qwen_client";
+import type { ClientCredentials } from "../../types/ai_client_types.js";
+import type { AIPlatformClientInterface } from "../../types/ai_client_types.js";
+import { AIPlatformType } from "../../types/ai_client_types.js";
+import { ChatGLMClient } from "../../clients/chatglm_client.js";
+import { TongyiClient } from "../../clients/tongyi_client.js";
+import { BaiduClient } from "../../clients/baidu_client.js";
+import { DeepSeekClient } from "../../clients/deepseek_client.js";
+import { QwenClient } from "../../clients/qwen_client.js";
 
 /**
  * AI客户端工厂类

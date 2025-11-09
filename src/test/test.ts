@@ -1,5 +1,4 @@
-import { UnifiedAIClient } from "../api/endpoints/unified_ai_client";
-import { AIPlatformType } from "../types/ai_client_types";
+import { UnifiedAIClient, AIPlatformType } from "../index.js";
 
 async function main() {
     const client = new UnifiedAIClient(AIPlatformType.TONGYI, {
