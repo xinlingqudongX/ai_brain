@@ -1,5 +1,5 @@
 import { BaseAIClient } from "../api/endpoints/base_ai_client";
-import type { TongyiModelsResponse } from "../types/tongyi_types";
+import type { TongyiModelsResponse, TongyiConversationRequest, TongyiMessageContent, TongyiSessionParams } from "../types/tongyi_types";
 import {
     AIPlatformType,
     ClientCredentials,
@@ -44,12 +44,33 @@ export class TongyiClient extends BaseAIClient {
         message: string,
         options?: SendMessageOptions
     ): Promise<AsyncIterable<string>> {
-        // 系统消息可能需要不同的参数或处理方式
-        // 这里我们简单地复用普通消息的逻辑，但可以添加特殊处理
-        return this.sendTongyiMessage(message, {
-            ...options,
-            messageType: "system",
-        });
+        return this.sendTongyiMessage(message, { ...options, messageType: "system" });
+    }
+
+    /**
+     * 发送带深度思考的消息
+     * @param message - 要发送的消息
+     * @param options - 发送选项
+     * @returns 返回异步可迭代的响应流
+     */
+    async sendDeepThinkMessage(
+        message: string,
+        options?: SendMessageOptions
+    ): Promise<AsyncIterable<string>> {
+        return this.sendTongyiMessage(message, { ...options, deepThink: true });
+    }
+
+    /**
+     * 发送不联网搜索的消息
+     * @param message - 要发送的消息
+     * @param options - 发送选项
+     * @returns 返回异步可迭代的响应流
+     */
+    async sendOfflineMessage(
+        message: string,
+        options?: SendMessageOptions
+    ): Promise<AsyncIterable<string>> {
+        return this.sendTongyiMessage(message, { ...options, searchType: "off" });
     }
 
     /**
@@ -60,7 +81,11 @@ export class TongyiClient extends BaseAIClient {
      */
     private async sendTongyiMessage(
         message: string,
-        options?: SendMessageOptions & { messageType?: string }
+        options?: SendMessageOptions & { 
+            messageType?: string;
+            deepThink?: boolean;
+            searchType?: string;
+        }
     ): Promise<AsyncIterable<string>> {
         // 确认模型已经选择
         if (!this.model) {
@@ -70,34 +95,62 @@ export class TongyiClient extends BaseAIClient {
         const parentMsgId = options?.parentId || this.generateUUID();
         const timeout = options?.timeout || 30000; // 默认30秒超时
 
-        const requestBody = {
+        // 构建基础消息内容
+        const messageContent: TongyiMessageContent = {
+            content: message,
+            contentType: "text",
+            role: options?.messageType === "system" ? "system" : "user"
+        };
+        
+        // 如果启用了深度思考，添加扩展参数
+        if (options?.deepThink) {
+            messageContent.ext = { deepThink: true };
+        }
+
+        // 构建基础会话参数
+        const sessionParams: TongyiSessionParams = {
+            specifiedModel: this.model,
+            lastUseModelList: [this.model],
+            recordModelName: this.model,
+            bizSceneInfo: {}
+        };
+        
+        // 如果启用了深度思考，添加相应参数
+        if (options?.deepThink) {
+            sessionParams.deepThink = true;
+        }
+        
+        // 如果设置了搜索类型，添加相应参数
+        if (options?.searchType) {
+            sessionParams.searchType = options.searchType;
+        }
+
+        // 构建请求体，使用明确定义的类型
+        const requestBody: TongyiConversationRequest = {
             sessionId: this.sessionID,
             sessionType: "text_chat",
             parentMsgId: parentMsgId,
-            model: "",
+            model: "", // 模型在params中指定
             mode: "chat",
             userAction: "",
             actionSource: "",
-            contents: [
-                {
-                    content: message,
-                    contentType: "text",
-                    role: options?.messageType === "system" ? "system" : "user",
-                },
-            ],
+            contents: [messageContent],
             action: "next",
             requestId: this.generateUUID(),
-            params: {
-                specifiedModel: this.model,
-                lastUseModelList: [this.model],
-                recordModelName: this.model,
-                bizSceneInfo: {},
-            },
+            params: sessionParams
         };
 
         const headers = {
             accept: "text/event-stream",
+            "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
             "content-type": "application/json",
+            priority: "u=1, i",
+            "sec-ch-ua": '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-site",
             "x-platform": "pc_tongyi",
             "x-xsrf-token": this.xsrfToken,
             cookie: this.credentials.cookies || "",
@@ -383,6 +436,40 @@ export class TongyiClient extends BaseAIClient {
             console.error("Failed to get available models:", error.message);
             return [];
         }
+    }
+
+    /**
+     * 设置会话参数
+     * @param params - 会话参数
+     */
+    async setSessionParams(params: {
+        temperature?: number;
+        maxTokens?: number;
+        topP?: number;
+        contextLimit?: number;
+    }): Promise<void> {
+        // 在请求体中设置会话参数
+        console.log("Setting session parameters:", params);
+        // 实际实现需要根据API要求调整
+    }
+
+    /**
+     * 获取会话历史
+     * @param limit - 返回的历史记录数量
+     * @returns 会话历史记录
+     */
+    async getConversationHistory(limit: number = 10): Promise<any[]> {
+        // 模拟获取会话历史
+        console.log(`Getting conversation history, limit: ${limit}`);
+        return [];
+    }
+
+    /**
+     * 清除会话上下文
+     */
+    async clearConversationContext(): Promise<void> {
+        // 生成新的会话ID以清除上下文
+        this.sessionID = this.generateUUID();
     }
 
     /**

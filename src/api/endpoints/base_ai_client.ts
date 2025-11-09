@@ -33,6 +33,48 @@ export abstract class BaseAIClient implements AIPlatformClientInterface {
     ): Promise<AsyncIterable<string>>;
 
     /**
+     * 发送系统消息（通用实现，子类可以覆盖）
+     * @param message - 要发送的系统消息
+     * @param options - 发送选项
+     * @returns 返回异步可迭代的响应流
+     */
+    async sendSystemMessage(
+        message: string,
+        options?: SendMessageOptions
+    ): Promise<AsyncIterable<string>> {
+        // 默认实现，子类可以覆盖
+        return this.sendMessage(message, options);
+    }
+
+    /**
+     * 发送带深度思考的消息（通用实现，子类可以覆盖）
+     * @param message - 要发送的消息
+     * @param options - 发送选项
+     * @returns 返回异步可迭代的响应流
+     */
+    async sendDeepThinkMessage(
+        message: string,
+        options?: SendMessageOptions
+    ): Promise<AsyncIterable<string>> {
+        // 默认实现，子类可以覆盖
+        return this.sendMessage(message, options);
+    }
+
+    /**
+     * 发送不联网搜索的消息（通用实现，子类可以覆盖）
+     * @param message - 要发送的消息
+     * @param options - 发送选项
+     * @returns 返回异步可迭代的响应流
+     */
+    async sendOfflineMessage(
+        message: string,
+        options?: SendMessageOptions
+    ): Promise<AsyncIterable<string>> {
+        // 默认实现，子类可以覆盖
+        return this.sendMessage(message, options);
+    }
+
+    /**
      * 获取用户信息（抽象方法，需子类实现）
      * @returns 返回用户信息
      */

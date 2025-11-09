@@ -60,6 +60,39 @@ export interface AIPlatformClientInterface {
     ): Promise<AsyncIterable<string>>;
 
     /**
+     * 发送系统消息
+     * @param message - 要发送的系统消息
+     * @param options - 发送选项
+     * @returns 返回异步可迭代的响应流
+     */
+    sendSystemMessage(
+        message: string,
+        options?: SendMessageOptions
+    ): Promise<AsyncIterable<string>>;
+
+    /**
+     * 发送带深度思考的消息
+     * @param message - 要发送的消息
+     * @param options - 发送选项
+     * @returns 返回异步可迭代的响应流
+     */
+    sendDeepThinkMessage(
+        message: string,
+        options?: SendMessageOptions
+    ): Promise<AsyncIterable<string>>;
+
+    /**
+     * 发送不联网搜索的消息
+     * @param message - 要发送的消息
+     * @param options - 发送选项
+     * @returns 返回异步可迭代的响应流
+     */
+    sendOfflineMessage(
+        message: string,
+        options?: SendMessageOptions
+    ): Promise<AsyncIterable<string>>;
+
+    /**
      * 获取用户信息
      * @returns 返回用户信息
      */
