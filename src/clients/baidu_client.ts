@@ -9,8 +9,85 @@ import { AIPlatformType } from "../types/ai_client_types";
  * 百度客户端实现
  */
 export class BaiduClient extends BaseAIClient {
+    public baseUrl: string = "https://yiyan.baidu.com/eb";
+
     constructor(credentials: ClientCredentials) {
         super(AIPlatformType.BAIDU, credentials);
+    }
+
+    /** 聊天会话 */
+    public async conversation() {
+        const res = await fetch(`${this.baseUrl}/chatflow/chat`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                // 添加百度特定的认证头
+                "Cookie": this.credentials.cookies,
+            },
+            body: JSON.stringify({
+                chat_params: {
+                    chat_token: this.generateChatToken(),
+                },
+            }),
+        });
+
+        if (!res.ok) {
+            throw new Error(`Failed to fetch conversation: ${res.status} ${res.statusText}`);
+        }
+
+        // 处理event-stream格式的数据流
+        const reader = res.body?.getReader();
+        if (!reader) {
+            throw new Error("Failed to get response body reader");
+        }
+
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+
+        return {
+            [Symbol.asyncIterator]() {
+                return {
+                    async next() {
+                        try {
+                            const { done, value } = await reader.read();
+                            if (done) {
+                                return { done: true, value: undefined };
+                            }
+
+                            buffer += decoder.decode(value, { stream: true });
+                            const lines = buffer.split("\n");
+                            buffer = lines.pop() || "";
+
+                            for (const line of lines) {
+                                if (line.startsWith("data: ")) {
+                                    const data = line.slice(6);
+                                    if (data === "[DONE]") {
+                                        return { done: true, value: undefined };
+                                    }
+                                    try {
+                                        return { done: false, value: JSON.parse(data) };
+                                    } catch (e) {
+                                        // 忽略无法解析的行
+                                    }
+                                }
+                            }
+
+                            return { done: false, value: undefined };
+                        } catch (error) {
+                            throw error;
+                        }
+                    },
+                    async return() {
+                        await reader.cancel();
+                        return { done: true, value: undefined };
+                    },
+                    async throw(error: any) {
+                        await reader.cancel();
+                        throw error;
+                    }
+                };
+            }
+        };
     }
 
     /**

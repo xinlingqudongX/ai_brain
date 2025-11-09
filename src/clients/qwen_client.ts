@@ -11,11 +11,88 @@ import { AIPlatformType } from "../types/ai_client_types";
 export class QwenClient extends BaseAIClient {
     private chatId: string;
     private model: string;
+    public baseUrl: string = "https://qianwen.aliyun.com";
 
     constructor(credentials: ClientCredentials) {
         super(AIPlatformType.QWEN, credentials);
         this.chatId = credentials.chatId || this.generateUUID();
         this.model = credentials.model || "qwen3-coder-plus";
+    }
+
+    /** 聊天会话 */
+    public async conversation() {
+        const res = await fetch(`${this.baseUrl}/conversation`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                // 添加通义千问特定的认证头
+                "Cookie": this.credentials.cookies,
+            },
+            body: JSON.stringify({
+                chat_id: this.chatId,
+                model: this.model,
+                stream: true,
+                incremental_output: true,
+            }),
+        });
+
+        if (!res.ok) {
+            throw new Error(`Failed to fetch conversation: ${res.status} ${res.statusText}`);
+        }
+
+        // 处理event-stream格式的数据流
+        const reader = res.body?.getReader();
+        if (!reader) {
+            throw new Error("Failed to get response body reader");
+        }
+
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+
+        return {
+            [Symbol.asyncIterator]() {
+                return {
+                    async next() {
+                        try {
+                            const { done, value } = await reader.read();
+                            if (done) {
+                                return { done: true, value: undefined };
+                            }
+
+                            buffer += decoder.decode(value, { stream: true });
+                            const lines = buffer.split("\n");
+                            buffer = lines.pop() || "";
+
+                            for (const line of lines) {
+                                if (line.startsWith("data: ")) {
+                                    const data = line.slice(6);
+                                    if (data === "[DONE]") {
+                                        return { done: true, value: undefined };
+                                    }
+                                    try {
+                                        return { done: false, value: JSON.parse(data) };
+                                    } catch (e) {
+                                        // 忽略无法解析的行
+                                    }
+                                }
+                            }
+
+                            return { done: false, value: undefined };
+                        } catch (error) {
+                            throw error;
+                        }
+                    },
+                    async return() {
+                        await reader.cancel();
+                        return { done: true, value: undefined };
+                    },
+                    async throw(error: any) {
+                        await reader.cancel();
+                        throw error;
+                    }
+                };
+            }
+        };
     }
 
     /**

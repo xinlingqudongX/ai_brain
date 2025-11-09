@@ -25,7 +25,6 @@ export interface ClientCredentials {
 export interface SendMessageOptions {
     conversationId?: string;
     parentId?: string;
-    timeout?: number;
     [key: string]: any; // 平台特定的选项
 }
 
@@ -34,22 +33,8 @@ export interface SendMessageOptions {
  */
 export interface AIPlatformClientInterface {
     baseUrl: string; // 平台API的基础URL
-    
-    /**
-     * 创建会话
-     * @returns 返回会话ID
-     */
-    createSession(): Promise<string>;
-    
-    /**
-     * 删除会话
-     * @param sessionId - 会话ID
-     */
-    deleteSession(sessionId: string): Promise<void>;
-
     /**
      * 发送消息给AI
-     * 注意：在发送消息前，必须确认模型已经选择（如果平台支持模型选择）
      * @param message - 要发送的消息
      * @param options - 发送选项
      * @returns 返回异步可迭代的响应流
@@ -77,23 +62,47 @@ export interface AIPlatformClientInterface {
      * @returns 返回提取的认证信息或null
      */
     extractCredentialsFromCookies(cookies: string): ClientCredentials | null;
+}
 
-    /**
-     * 选择模型
-     * @param model - 模型标识
-     * @returns 是否选择成功
-     */
-    selectModel(model: string): Promise<boolean>;
+/**
+ * 通义千问模型系列
+ */
+export interface TongyiModelSeries {
+    modelSeries: string;
+    params: TongyiModelParam[];
+}
 
-    /**
-     * 获取当前模型
-     * @returns 当前模型标识
-     */
-    getCurrentModel(): string;
+/**
+ * 通义千问模型参数
+ */
+export interface TongyiModelParam {
+    newTag?: boolean;
+    modelName: string;
+    capsule: TongyiModelCapsule[];
+    expanded: boolean;
+    picked: boolean;
+    modelCode: string;
+    describe: string;
+    order: number;
+}
 
-    /**
-     * 获取可用模型列表
-     * @returns 可用模型列表
-     */
-    getAvailableModels(): Promise<string[]>;
+/**
+ * 通义千问模型功能胶囊
+ */
+export interface TongyiModelCapsule {
+    code: string;
+    enable: boolean;
+}
+
+/**
+ * 通义千问获取模型函数的返回类型
+ */
+export interface TongyiModelsResponse {
+    success: boolean;
+    httpCode: number;
+    errorCode: string | null;
+    errorMsg: string | null;
+    data: TongyiModelSeries[];
+    traceId: string;
+    failed: boolean;
 }
