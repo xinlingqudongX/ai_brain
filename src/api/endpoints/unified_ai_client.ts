@@ -2,9 +2,9 @@ import type {
     AIPlatformType,
     ClientCredentials,
     SendMessageOptions,
-} from "../../types/ai_client_types.js";
-import type { AIPlatformClientInterface } from "../../types/ai_client_types.js";
-import { AIClientFactory } from "./ai_client_factory.js";
+} from "../../types/ai_client_types";
+import type { AIPlatformClientInterface } from "../../types/ai_client_types";
+import { AIClientFactory } from "./ai_client_factory";
 
 /**
  * 统一AI客户端

@@ -1,9 +1,9 @@
-import { BaseAIClient } from "../api/endpoints/base_ai_client.js";
+import { BaseAIClient } from "../api/endpoints/base_ai_client";
 import type {
     ClientCredentials,
     SendMessageOptions,
-} from "../types/ai_client_types.js";
-import { AIPlatformType } from "../types/ai_client_types.js";
+} from "../types/ai_client_types";
+import { AIPlatformType } from "../types/ai_client_types";
 
 /**
  * 通义千问(Qwen)客户端实现

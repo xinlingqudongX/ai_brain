@@ -1,14 +1,15 @@
 /**
  * AI平台类型枚举
  */
-export enum AIPlatformType {
-    CHATGLM = "chatglm",
-    TONGYI = "tongyi",
-    BAIDU = "baidu",
-    DEEPSEEK = "deepseek",
-    QWEN = "qwen",
-}
-
+export const AIPlatformType = {
+    CHATGLM: "chatglm",
+    TONGYI: "tongyi",
+    BAIDU: "baidu",
+    DEEPSEEK: "deepseek",
+    QWEN: "qwen",
+} as const;
+export type AIPlatformType =
+    (typeof AIPlatformType)[keyof typeof AIPlatformType];
 /**
  * 客户端认证信息接口
  */
@@ -30,6 +31,7 @@ export interface SendMessageOptions {
  * AI平台客户端接口
  */
 export interface AIPlatformClientInterface {
+    baseUrl: string; // 平台API的基础URL
     /**
      * 发送消息给AI
      * @param message - 要发送的消息

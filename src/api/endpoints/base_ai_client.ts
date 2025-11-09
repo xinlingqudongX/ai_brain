@@ -1,9 +1,9 @@
-import type {
+import {
     AIPlatformClientInterface,
     ClientCredentials,
     SendMessageOptions,
     AIPlatformType,
-} from "../../types/ai_client_types.js";
+} from "../../types/ai_client_types";
 
 /**
  * 基础AI客户端抽象类
@@ -12,6 +12,7 @@ import type {
 export abstract class BaseAIClient implements AIPlatformClientInterface {
     protected credentials: ClientCredentials;
     protected platform: AIPlatformType;
+    public baseUrl: string = "";
 
     constructor(platform: AIPlatformType, credentials: ClientCredentials) {
         this.platform = platform;

@@ -1,9 +1,9 @@
-import { BaseAIClient } from "../api/endpoints/base_ai_client.js";
+import { BaseAIClient } from "../api/endpoints/base_ai_client";
 import type {
     ClientCredentials,
     SendMessageOptions,
-} from "../types/ai_client_types.js";
-import { AIPlatformType } from "../types/ai_client_types.js";
+} from "../types/ai_client_types";
+import { AIPlatformType } from "../types/ai_client_types";
 
 /**
  * 通义千问客户端实现
@@ -12,12 +12,27 @@ export class TongyiClient extends BaseAIClient {
     private sessionId: string;
     private xsrfToken: string;
     private model: string;
+    public baseUrl: string = "https://api.tongyi.com";
 
     constructor(credentials: ClientCredentials) {
         super(AIPlatformType.TONGYI, credentials);
         this.sessionId = credentials.sessionId || this.generateUUID();
         this.xsrfToken = credentials.xsrfToken || "";
         this.model = credentials.model || "tongyi-qwen3-plus-model";
+    }
+
+    /** 聊天会话 */
+    public async conversation() {
+        const res = await fetch(`${this.baseUrl}/dialog/conversation`, {
+            headers: {
+                "Content-Type": "application/json",
+                // "X-Xsrf-Token": this.xsrfToken,
+            },
+        });
+
+        if (!res.ok) {
+            throw new Error("Failed to fetch conversation");
+        }
     }
 
     /**
