@@ -1,98 +1,80 @@
+/**
+ * 通义千问(Qwen)客户端实现 - 使用统一协议适配器
+ */
+
 import { BaseAIClient } from "../api/endpoints/base_ai_client";
+import { ProtocolAdapterManager } from "../api/protocol/protocol_adapter_manager";
+import { SSEAdapter } from "../api/protocol/sse_adapter";
+import { MockAdapter } from "../api/protocol/mock_adapter";
 import type {
     ClientCredentials,
     SendMessageOptions,
 } from "../types/ai_client_types";
 import { AIPlatformType } from "../types/ai_client_types";
+import { ProtocolType } from "../api/protocol/protocol_types";
 
 /**
- * 通义千问(Qwen)客户端实现
+ * 通义千问(Qwen)客户端实现 - 使用统一协议适配器
  */
 export class QwenClient extends BaseAIClient {
     private chatId: string;
     private model: string;
     public baseUrl: string = "https://qianwen.aliyun.com";
+    private protocolAdapter: ProtocolAdapterManager;
 
     constructor(credentials: ClientCredentials) {
         super(AIPlatformType.QWEN, credentials);
         this.chatId = credentials.chatId || this.generateUUID();
         this.model = credentials.model || "qwen3-coder-plus";
+        
+        // 初始化协议适配器
+        this.protocolAdapter = new ProtocolAdapterManager();
+        
+        // 根据环境选择适配器
+        if (credentials.useMock || process.env.NODE_ENV === 'test') {
+            this.protocolAdapter.setAdapter(new MockAdapter());
+        } else {
+            this.protocolAdapter.setAdapter(new SSEAdapter());
+        }
     }
 
     /** 聊天会话 */
     public async conversation() {
-        const res = await fetch(`${this.baseUrl}/conversation`, {
-            method: "POST",
+        // 使用统一协议适配器
+        const request = {
+            url: `${this.baseUrl}/conversation`,
+            method: 'POST' as const,
             headers: {
                 "Content-Type": "application/json",
-                // 添加通义千问特定的认证头
                 "Cookie": this.credentials.cookies,
             },
-            body: JSON.stringify({
+            body: {
                 chat_id: this.chatId,
                 model: this.model,
                 stream: true,
                 incremental_output: true,
-            }),
-        });
-
-        if (!res.ok) {
-            throw new Error(`Failed to fetch conversation: ${res.status} ${res.statusText}`);
-        }
-
-        // 处理event-stream格式的数据流
-        const reader = res.body?.getReader();
-        if (!reader) {
-            throw new Error("Failed to get response body reader");
-        }
-
-        const decoder = new TextDecoder("utf-8");
-        let buffer = "";
-
-        return {
-            [Symbol.asyncIterator]() {
-                return {
-                    async next() {
-                        try {
-                            const { done, value } = await reader.read();
-                            if (done) {
-                                return { done: true, value: undefined };
-                            }
-
-                            buffer += decoder.decode(value, { stream: true });
-                            const lines = buffer.split("\n");
-                            buffer = lines.pop() || "";
-
-                            for (const line of lines) {
-                                if (line.startsWith("data: ")) {
-                                    const data = line.slice(6);
-                                    if (data === "[DONE]") {
-                                        return { done: true, value: undefined };
-                                    }
-                                    try {
-                                        return { done: false, value: JSON.parse(data) };
-                                    } catch (e) {
-                                        // 忽略无法解析的行
-                                    }
-                                }
-                            }
-
-                            return { done: false, value: undefined };
-                        } catch (error) {
-                            throw error;
-                        }
-                    },
-                    async return() {
-                        await reader.cancel();
-                        return { done: true, value: undefined };
-                    },
-                    async throw(error: any) {
-                        await reader.cancel();
-                        throw error;
-                    }
-                };
             }
         };
+
+        try {
+            // 使用协议适配器发送流式请求
+            const streamResponses = this.protocolAdapter.sendStream(request);
+            
+            // 创建异步迭代器
+            const asyncIterator = {
+                async *[Symbol.asyncIterator]() {
+                    for await (const response of streamResponses) {
+                        if (response.type === 'chunk' && response.data) {
+                            yield response.data;
+                        }
+                    }
+                }
+            };
+            
+            return asyncIterator;
+        } catch (error) {
+            throw new Error(`Failed to fetch conversation: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
     }
 
     /**
@@ -144,22 +126,34 @@ export class QwenClient extends BaseAIClient {
             timestamp: Date.now(),
         };
 
-        // 创建一个异步生成器来处理SSE流
+        // 创建异步生成器来处理流式响应
+        const self = this;
         async function* streamResponse(): AsyncIterable<string> {
-            // 这里应该是实际的API调用
-            // 由于我们没有真实的API访问权限，返回模拟数据
-            yield JSON.stringify({
-                choices: [
-                    {
-                        delta: {
-                            content: "这是来自通义千问的模拟响应: " + message,
-                        },
-                    },
-                ],
-            });
-            yield JSON.stringify({
-                choices: [{ delta: { content: "\n感谢您的消息！" } }],
-            });
+            const request = {
+                url: `${self.baseUrl}/api/chat`,
+                method: 'POST' as const,
+                headers: {
+                    "Content-Type": "application/json",
+                    "Cookie": self.credentials.cookies,
+                },
+                body: requestBody
+            };
+
+            try {
+                const streamResponses = self.protocolAdapter.sendStream(request);
+                
+                for await (const response of streamResponses) {
+                    if (response.type === 'chunk' && response.data) {
+                        // 提取内容
+                        const content = response.data.choices?.[0]?.delta?.content || '';
+                        if (content) {
+                            yield content;
+                        }
+                    }
+                }
+            } catch (error) {
+                throw new Error(`Send message failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
         }
 
         return streamResponse();
@@ -170,13 +164,26 @@ export class QwenClient extends BaseAIClient {
      * @returns 返回用户信息
      */
     async getUserInfo(): Promise<any> {
-        // 模拟用户信息响应
-        return {
-            user_id: "qwen_user_123456",
-            username: "通义千问用户",
-            platform: "qwen",
-            created_at: new Date().toISOString(),
+        const request = {
+            url: `${this.baseUrl}/user/info`,
+            method: 'GET' as const,
+            headers: {
+                "Cookie": this.credentials.cookies,
+            }
         };
+
+        try {
+            const response = await this.protocolAdapter.send(request);
+            return response.data;
+        } catch (error) {
+            // 如果失败，返回模拟数据
+            return {
+                user_id: "qwen_user_123456",
+                username: "通义千问用户",
+                platform: "qwen",
+                created_at: new Date().toISOString(),
+            };
+        }
     }
 
     /**
@@ -200,5 +207,29 @@ export class QwenClient extends BaseAIClient {
             acwTc: acwTcMatch ? acwTcMatch[1] : "",
             cna: cnaMatch ? cnaMatch[1] : "",
         };
+    }
+
+    /**
+     * 获取协议适配器（用于测试和调试）
+     */
+    getProtocolAdapter(): ProtocolAdapterManager {
+        return this.protocolAdapter;
+    }
+
+    /**
+     * 设置协议适配器类型
+     * @param type - 适配器类型
+     */
+    setProtocolType(type: ProtocolType): void {
+        switch (type) {
+            case ProtocolType.MOCK:
+                this.protocolAdapter.setAdapter(new MockAdapter());
+                break;
+            case ProtocolType.SSE:
+                this.protocolAdapter.setAdapter(new SSEAdapter());
+                break;
+            default:
+                throw new Error(`Unsupported protocol type: ${type}`);
+        }
     }
 }

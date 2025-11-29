@@ -1,32 +1,52 @@
+/**
+ * DeepSeek客户端实现 - 使用统一协议适配器
+ */
+
 import { BaseAIClient } from "../api/endpoints/base_ai_client";
+import { ProtocolAdapterManager } from "../api/protocol/protocol_adapter_manager";
+import { SSEAdapter } from "../api/protocol/sse_adapter";
+import { MockAdapter } from "../api/protocol/mock_adapter";
 import type {
     ClientCredentials,
     SendMessageOptions,
 } from "../types/ai_client_types";
 import { AIPlatformType } from "../types/ai_client_types";
+import { ProtocolType } from "../api/protocol/protocol_types";
 
 /**
- * DeepSeek客户端实现
+ * DeepSeek客户端实现 - 使用统一协议适配器
  */
 export class DeepSeekClient extends BaseAIClient {
     private authorization: string;
     public baseUrl: string = "https://chat.deepseek.com";
+    private protocolAdapter: ProtocolAdapterManager;
 
     constructor(credentials: ClientCredentials) {
         super(AIPlatformType.DEEPSEEK, credentials);
         this.authorization = credentials.authorization || "";
+        
+        // 初始化协议适配器
+        this.protocolAdapter = new ProtocolAdapterManager();
+        
+        // 根据环境选择适配器
+        if (credentials.useMock || process.env.NODE_ENV === 'test') {
+            this.protocolAdapter.setAdapter(new MockAdapter());
+        } else {
+            this.protocolAdapter.setAdapter(new SSEAdapter());
+        }
     }
 
     /** 聊天会话 */
     public async conversation() {
-        const res = await fetch(`${this.baseUrl}/api/v0/chat/completion`, {
-            method: "POST",
+        // 使用统一协议适配器
+        const request = {
+            url: `${this.baseUrl}/api/v0/chat/completion`,
+            method: 'POST' as const,
             headers: {
                 "Content-Type": "application/json",
                 "Authorization": this.authorization,
-                // 添加其他必要的认证头
             },
-            body: JSON.stringify({
+            body: {
                 chat_session_id: this.generateUUID(),
                 parent_message_id: null,
                 prompt: "",
@@ -34,70 +54,32 @@ export class DeepSeekClient extends BaseAIClient {
                 thinking_enabled: false,
                 search_enabled: true,
                 client_stream_id: this.generateClientStreamId(),
-            }),
-        });
-
-        if (!res.ok) {
-            throw new Error(`Failed to fetch conversation: ${res.status} ${res.statusText}`);
-        }
-
-        // 处理event-stream格式的数据流
-        const reader = res.body?.getReader();
-        if (!reader) {
-            throw new Error("Failed to get response body reader");
-        }
-
-        const decoder = new TextDecoder("utf-8");
-        let buffer = "";
-
-        return {
-            [Symbol.asyncIterator]() {
-                return {
-                    async next() {
-                        try {
-                            const { done, value } = await reader.read();
-                            if (done) {
-                                return { done: true, value: undefined };
-                            }
-
-                            buffer += decoder.decode(value, { stream: true });
-                            const lines = buffer.split("\n");
-                            buffer = lines.pop() || "";
-
-                            for (const line of lines) {
-                                if (line.startsWith("data: ")) {
-                                    const data = line.slice(6);
-                                    if (data === "[DONE]") {
-                                        return { done: true, value: undefined };
-                                    }
-                                    try {
-                                        return { done: false, value: JSON.parse(data) };
-                                    } catch (e) {
-                                        // 忽略无法解析的行
-                                    }
-                                }
-                            }
-
-                            return { done: false, value: undefined };
-                        } catch (error) {
-                            throw error;
-                        }
-                    },
-                    async return() {
-                        await reader.cancel();
-                        return { done: true, value: undefined };
-                    },
-                    async throw(error: any) {
-                        await reader.cancel();
-                        throw error;
-                    }
-                };
             }
         };
+
+        try {
+            // 使用协议适配器发送流式请求
+            const streamResponses = this.protocolAdapter.sendStream(request);
+            
+            // 创建异步迭代器
+            const asyncIterator = {
+                async *[Symbol.asyncIterator]() {
+                    for await (const response of streamResponses) {
+                        if (response.type === 'chunk' && response.data) {
+                            yield response.data;
+                        }
+                    }
+                }
+            };
+            
+            return asyncIterator;
+        } catch (error) {
+            throw new Error(`Failed to fetch conversation: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
     }
 
     /**
-     * 发送消息给DeepSeek AI
+     * 发送消息给DeepSeek
      * @param message - 要发送的消息
      * @param options - 发送选项
      * @returns 返回异步可迭代的响应流
@@ -106,33 +88,42 @@ export class DeepSeekClient extends BaseAIClient {
         message: string,
         options?: SendMessageOptions
     ): Promise<AsyncIterable<string>> {
-        // 构建请求体
         const requestBody = {
-            chat_session_id: options?.conversationId || this.generateUUID(),
-            parent_message_id: options?.parentId || null,
-            prompt: message,
-            ref_file_ids: [],
-            thinking_enabled: false,
-            search_enabled: true,
-            client_stream_id: this.generateClientStreamId(),
+            message: message,
+            stream: true,
+            chat_session_id: options?.chatSessionId || this.generateUUID(),
+            parent_message_id: options?.parentMessageId || null,
+            timestamp: Date.now(),
         };
 
-        // 创建一个异步生成器来处理SSE流
+        // 创建异步生成器来处理流式响应
+        const self = this;
         async function* streamResponse(): AsyncIterable<string> {
-            // 这里应该是实际的API调用
-            // 由于我们没有真实的API访问权限，返回模拟数据
-            yield JSON.stringify({
-                choices: [
-                    {
-                        delta: {
-                            content: "这是来自DeepSeek的模拟响应: " + message,
-                        },
-                    },
-                ],
-            });
-            yield JSON.stringify({
-                choices: [{ delta: { content: "\n感谢您的消息！" } }],
-            });
+            const request = {
+                url: `${self.baseUrl}/api/v0/chat/completion`,
+                method: 'POST' as const,
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": self.authorization,
+                },
+                body: requestBody
+            };
+
+            try {
+                const streamResponses = self.protocolAdapter.sendStream(request);
+                
+                for await (const response of streamResponses) {
+                    if (response.type === 'chunk' && response.data) {
+                        // 提取内容
+                        const content = response.data.choices?.[0]?.delta?.content || '';
+                        if (content) {
+                            yield content;
+                        }
+                    }
+                }
+            } catch (error) {
+                throw new Error(`Send message failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
         }
 
         return streamResponse();
@@ -143,13 +134,26 @@ export class DeepSeekClient extends BaseAIClient {
      * @returns 返回用户信息
      */
     async getUserInfo(): Promise<any> {
-        // 模拟用户信息响应
-        return {
-            user_id: "deepseek_user_123456",
-            username: "DeepSeek用户",
-            platform: "deepseek",
-            created_at: new Date().toISOString(),
+        const request = {
+            url: `${this.baseUrl}/user/info`,
+            method: 'GET' as const,
+            headers: {
+                "Authorization": this.authorization,
+            }
         };
+
+        try {
+            const response = await this.protocolAdapter.send(request);
+            return response.data;
+        } catch (error) {
+            // 如果失败，返回模拟数据
+            return {
+                user_id: "deepseek_user_123456",
+                username: "DeepSeek用户",
+                platform: "deepseek",
+                created_at: new Date().toISOString(),
+            };
+        }
     }
 
     /**
@@ -160,13 +164,7 @@ export class DeepSeekClient extends BaseAIClient {
     extractCredentialsFromCookies(cookies: string): ClientCredentials | null {
         if (!cookies) return null;
 
-        // DeepSeek使用authorization header和cookies
-        const sessionIdMatch = cookies.match(/ds_session_id=([^;]+)/);
-
-        if (!sessionIdMatch && !this.authorization) {
-            return null;
-        }
-
+        // DeepSeek使用Authorization头
         return {
             cookies,
             authorization: this.authorization,
@@ -175,14 +173,33 @@ export class DeepSeekClient extends BaseAIClient {
 
     /**
      * 生成客户端流ID
-     * @returns 返回生成的客户端流ID
+     * @returns 返回客户端流ID
      */
     private generateClientStreamId(): string {
-        const date = new Date();
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, "0");
-        const day = String(date.getDate()).padStart(2, "0");
-        const randomPart = Math.random().toString(36).substring(2, 16);
-        return `${year}${month}${day}-${randomPart}`;
+        return `stream_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    /**
+     * 获取协议适配器（用于测试和调试）
+     */
+    getProtocolAdapter(): ProtocolAdapterManager {
+        return this.protocolAdapter;
+    }
+
+    /**
+     * 设置协议适配器类型
+     * @param type - 适配器类型
+     */
+    setProtocolType(type: ProtocolType): void {
+        switch (type) {
+            case ProtocolType.MOCK:
+                this.protocolAdapter.setAdapter(new MockAdapter());
+                break;
+            case ProtocolType.SSE:
+                this.protocolAdapter.setAdapter(new SSEAdapter());
+                break;
+            default:
+                throw new Error(`Unsupported protocol type: ${type}`);
+        }
     }
 }

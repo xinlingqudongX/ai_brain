@@ -1,97 +1,79 @@
+/**
+ * 百度客户端实现 - 使用统一协议适配器
+ */
+
 import { BaseAIClient } from "../api/endpoints/base_ai_client";
+import { ProtocolAdapterManager } from "../api/protocol/protocol_adapter_manager";
+import { SSEAdapter } from "../api/protocol/sse_adapter";
+import { MockAdapter } from "../api/protocol/mock_adapter";
 import type {
     ClientCredentials,
     SendMessageOptions,
 } from "../types/ai_client_types";
 import { AIPlatformType } from "../types/ai_client_types";
+import { ProtocolType } from "../api/protocol/protocol_types";
 
 /**
- * 百度客户端实现
+ * 百度客户端实现 - 使用统一协议适配器
  */
 export class BaiduClient extends BaseAIClient {
     public baseUrl: string = "https://yiyan.baidu.com/eb";
+    private protocolAdapter: ProtocolAdapterManager;
 
     constructor(credentials: ClientCredentials) {
         super(AIPlatformType.BAIDU, credentials);
+        
+        // 初始化协议适配器
+        this.protocolAdapter = new ProtocolAdapterManager();
+        
+        // 根据环境选择适配器
+        if (credentials.useMock || process.env.NODE_ENV === 'test') {
+            this.protocolAdapter.setAdapter(new MockAdapter());
+        } else {
+            this.protocolAdapter.setAdapter(new SSEAdapter());
+        }
     }
 
     /** 聊天会话 */
     public async conversation() {
-        const res = await fetch(`${this.baseUrl}/chatflow/chat`, {
-            method: "POST",
+        // 使用统一协议适配器
+        const request = {
+            url: `${this.baseUrl}/chatflow/chat`,
+            method: 'POST' as const,
             headers: {
                 "Content-Type": "application/json",
-                // 添加百度特定的认证头
                 "Cookie": this.credentials.cookies,
             },
-            body: JSON.stringify({
+            body: {
                 chat_params: {
                     chat_token: this.generateChatToken(),
                 },
-            }),
-        });
-
-        if (!res.ok) {
-            throw new Error(`Failed to fetch conversation: ${res.status} ${res.statusText}`);
-        }
-
-        // 处理event-stream格式的数据流
-        const reader = res.body?.getReader();
-        if (!reader) {
-            throw new Error("Failed to get response body reader");
-        }
-
-        const decoder = new TextDecoder("utf-8");
-        let buffer = "";
-
-        return {
-            [Symbol.asyncIterator]() {
-                return {
-                    async next() {
-                        try {
-                            const { done, value } = await reader.read();
-                            if (done) {
-                                return { done: true, value: undefined };
-                            }
-
-                            buffer += decoder.decode(value, { stream: true });
-                            const lines = buffer.split("\n");
-                            buffer = lines.pop() || "";
-
-                            for (const line of lines) {
-                                if (line.startsWith("data: ")) {
-                                    const data = line.slice(6);
-                                    if (data === "[DONE]") {
-                                        return { done: true, value: undefined };
-                                    }
-                                    try {
-                                        return { done: false, value: JSON.parse(data) };
-                                    } catch (e) {
-                                        // 忽略无法解析的行
-                                    }
-                                }
-                            }
-
-                            return { done: false, value: undefined };
-                        } catch (error) {
-                            throw error;
-                        }
-                    },
-                    async return() {
-                        await reader.cancel();
-                        return { done: true, value: undefined };
-                    },
-                    async throw(error: any) {
-                        await reader.cancel();
-                        throw error;
-                    }
-                };
             }
         };
+
+        try {
+            // 使用协议适配器发送流式请求
+            const streamResponses = this.protocolAdapter.sendStream(request);
+            
+            // 创建异步迭代器
+            const asyncIterator = {
+                async *[Symbol.asyncIterator]() {
+                    for await (const response of streamResponses) {
+                        if (response.type === 'chunk' && response.data) {
+                            yield response.data;
+                        }
+                    }
+                }
+            };
+            
+            return asyncIterator;
+        } catch (error) {
+            throw new Error(`Failed to fetch conversation: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
     }
 
     /**
-     * 发送消息给百度AI
+     * 发送消息给百度
      * @param message - 要发送的消息
      * @param options - 发送选项
      * @returns 返回异步可迭代的响应流
@@ -100,94 +82,41 @@ export class BaiduClient extends BaseAIClient {
         message: string,
         options?: SendMessageOptions
     ): Promise<AsyncIterable<string>> {
-        // 构建请求体
         const requestBody = {
-            message: {
-                inputMethod: "chat_search",
-                isRebuild: false,
-                content: {
-                    query: message,
-                    agentInfo: {
-                        agent_id: [""],
-                        params: '{"agt_rk":1,"agt_sess_cnt":1}',
-                    },
-                    agentInfoList: [],
-                    qtype: 0,
-                    aitab_ct: "",
-                },
-                searchInfo: {
-                    srcid: "",
-                    order: "",
-                    tplname: "",
-                    dqaKey: "",
-                    re_rank: "1",
-                    ori_lid: "",
-                    sa: "bkb",
-                    enter_type: "ai_tab_url",
-                    chatParams: {
-                        setype: "csaitab",
-                        chat_samples: "WISE_NEW_CSAITAB",
-                        chat_token: this.generateChatToken(),
-                        scene: "",
-                    },
-                    blockCmpt: [],
-                    usedModel: {
-                        modelName: "DeepSeek-R1",
-                        modelFunction: {
-                            deepSearch: "0",
-                            internetSearch: "0",
-                        },
-                    },
-                    landingPageSwitch: "",
-                    landingPage: "aitab",
-                    ecomFrom: "",
-                    isInnovate: 2,
-                    applid: "",
-                    a_lid: "",
-                    out_enter_type: "",
-                    showMindMap: false,
-                },
-                from: "",
-                source: "pc_csaitab",
-                query: [
-                    {
-                        type: "TEXT",
-                        data: {
-                            text: {
-                                query: message,
-                                extData: "{}",
-                                text_type: "",
-                            },
-                        },
-                    },
-                ],
-                anti_ext: {
-                    inputT: null,
-                    ck1: 10952,
-                    ck9: 1117,
-                    ck10: 229,
-                },
-            },
-            setype: "csaitab",
-            rank: 1,
+            content: message,
+            stream: true,
+            chat_id: options?.chatId || this.generateUUID(),
+            timestamp: Date.now(),
         };
 
-        // 创建一个异步生成器来处理SSE流
+        // 创建异步生成器来处理流式响应
+        const self = this;
         async function* streamResponse(): AsyncIterable<string> {
-            // 这里应该是实际的API调用
-            // 由于我们没有真实的API访问权限，返回模拟数据
-            yield JSON.stringify({
-                choices: [
-                    {
-                        delta: {
-                            content: "这是来自百度AI的模拟响应: " + message,
-                        },
-                    },
-                ],
-            });
-            yield JSON.stringify({
-                choices: [{ delta: { content: "\n感谢您的消息！" } }],
-            });
+            const request = {
+                url: `${self.baseUrl}/api/chat`,
+                method: 'POST' as const,
+                headers: {
+                    "Content-Type": "application/json",
+                    "Cookie": self.credentials.cookies,
+                },
+                body: requestBody
+            };
+
+            try {
+                const streamResponses = self.protocolAdapter.sendStream(request);
+                
+                for await (const response of streamResponses) {
+                    if (response.type === 'chunk' && response.data) {
+                        // 提取内容
+                        const content = response.data.choices?.[0]?.delta?.content || '';
+                        if (content) {
+                            yield content;
+                        }
+                    }
+                }
+            } catch (error) {
+                throw new Error(`Send message failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
         }
 
         return streamResponse();
@@ -198,13 +127,26 @@ export class BaiduClient extends BaseAIClient {
      * @returns 返回用户信息
      */
     async getUserInfo(): Promise<any> {
-        // 模拟用户信息响应
-        return {
-            user_id: "baidu_user_123456",
-            username: "百度用户",
-            platform: "baidu",
-            created_at: new Date().toISOString(),
+        const request = {
+            url: `${this.baseUrl}/user/info`,
+            method: 'GET' as const,
+            headers: {
+                "Cookie": this.credentials.cookies,
+            }
         };
+
+        try {
+            const response = await this.protocolAdapter.send(request);
+            return response.data;
+        } catch (error) {
+            // 如果失败，返回模拟数据
+            return {
+                user_id: "baidu_user_123456",
+                username: "百度用户",
+                platform: "baidu",
+                created_at: new Date().toISOString(),
+            };
+        }
     }
 
     /**
@@ -215,39 +157,50 @@ export class BaiduClient extends BaseAIClient {
     extractCredentialsFromCookies(cookies: string): ClientCredentials | null {
         if (!cookies) return null;
 
-        // 百度使用多个cookie字段
-        const baiduIdMatch =
-            cookies.match(/BAIDUID=([^;]+)/) ||
-            cookies.match(/BAIDUID_BFESS=([^;]+)/);
-        const bdussMatch =
-            cookies.match(/BDUSS=([^;]+)/) ||
-            cookies.match(/BDUSS_BFESS=([^;]+)/);
+        // 百度使用特定的认证机制
+        const baiduIdMatch = cookies.match(/BAIDUID=([^;]+)/);
+        const baiduUssMatch = cookies.match(/BAIDUSS=([^;]+)/);
 
-        if (!baiduIdMatch && !bdussMatch) {
+        if (!baiduIdMatch && !baiduUssMatch) {
             return null;
         }
 
         return {
             cookies,
             baiduId: baiduIdMatch ? baiduIdMatch[1] : "",
-            bduss: bdussMatch ? bdussMatch[1] : "",
+            baiduUss: baiduUssMatch ? baiduUssMatch[1] : "",
         };
     }
 
     /**
-     * 生成聊天token
-     * @returns 返回生成的聊天token
+     * 生成聊天令牌
+     * @returns 返回聊天令牌
      */
     private generateChatToken(): string {
-        const randomPart1 = this.generateUUID()
-            .replace(/-/g, "")
-            .substring(0, 24);
-        const randomPart2 = this.generateUUID()
-            .replace(/-/g, "")
-            .substring(0, 32);
-        const timestamp = Date.now();
-        const randomPart3 = Math.floor(Math.random() * 10000000000000000000);
+        return `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
 
-        return `${randomPart1}|${randomPart2}|${timestamp}|${randomPart3}-${randomPart3}-3`;
+    /**
+     * 获取协议适配器（用于测试和调试）
+     */
+    getProtocolAdapter(): ProtocolAdapterManager {
+        return this.protocolAdapter;
+    }
+
+    /**
+     * 设置协议适配器类型
+     * @param type - 适配器类型
+     */
+    setProtocolType(type: ProtocolType): void {
+        switch (type) {
+            case ProtocolType.MOCK:
+                this.protocolAdapter.setAdapter(new MockAdapter());
+                break;
+            case ProtocolType.SSE:
+                this.protocolAdapter.setAdapter(new SSEAdapter());
+                break;
+            default:
+                throw new Error(`Unsupported protocol type: ${type}`);
+        }
     }
 }

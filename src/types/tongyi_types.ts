@@ -340,3 +340,32 @@ export const TongyiModels = {
 } as const;
 
 export type TongyiModelKey = keyof typeof TongyiModels;
+
+/**
+ * 通义千问登录状态响应
+ */
+export interface TongyiLoginStatusResponse {
+  /** 是否成功 */
+  success: boolean;
+  
+  /** 状态码 */
+  code: number;
+  
+  /** HTTP状态码 */
+  httpCode: number;
+  
+  /** 数据 */
+  data: {
+    /** 账户类型 */
+    accountType: string;
+    
+    /** 用户ID */
+    userId: string;
+  };
+  
+  /** 跟踪ID */
+  traceId: string;
+  
+  /** 是否失败 */
+  failed: boolean;
+}

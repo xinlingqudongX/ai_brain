@@ -32,6 +32,9 @@
         "node": ">=18.0.0"
     },
     "dependencies": {
-        "uuid": "^13.0.0"
+        "axios": "^1.13.2",
+        "fetch-event-stream": "^0.1.6",
+        "uuid": "^13.0.0",
+        "zod": "^4.1.13"
     }
 }

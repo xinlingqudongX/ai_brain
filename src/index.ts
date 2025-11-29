@@ -14,6 +14,24 @@ export type {
 // 导出枚举值
 export { AIPlatformType } from './types/ai_client_types';
 
+// 导出协议适配器相关
+export type {
+  ProtocolAdapter,
+  ProtocolType,
+  ConnectionConfig,
+  UnifiedRequest,
+  UnifiedResponse,
+  StreamResponse,
+  StreamEventType,
+  ConnectionInfo,
+  ErrorInfo,
+  StreamMetadata,
+  RetryOptions
+} from './api/protocol';
+
+export { SSEAdapter } from './api/protocol';
+export { ProtocolAdapterFactory } from './api/protocol';
+
 // 导出核心类
 export { BaseAIClient } from './api/endpoints/base_ai_client';
 export { AIClientFactory } from './api/endpoints/ai_client_factory';

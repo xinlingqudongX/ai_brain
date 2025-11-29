@@ -1,5 +1,7 @@
+import axios, { AxiosInstance } from "axios";
 import { BaseAIClient } from "../api/endpoints/base_ai_client";
-import type { TongyiModelsResponse, TongyiConversationRequest, TongyiMessageContent, TongyiSessionParams } from "../types/tongyi_types";
+import type { TongyiModelsResponse, TongyiConversationRequest, TongyiMessageContent, TongyiSessionParams, TongyiLoginStatusResponse } from "../types/tongyi_types";
+import type { TongyiAIResponse } from "../types/tongyi_response_types";
 import {
     AIPlatformType,
     ClientCredentials,
@@ -12,13 +14,46 @@ import {
 export class TongyiClient extends BaseAIClient {
     private xsrfToken: string;
     private model: string;
-    public baseUrl: string = "https://api.tongyi.com";
+    public baseUrl: string = "https://api.qianwen.com";
+    private httpClient: AxiosInstance;
 
     constructor(credentials: ClientCredentials) {
         super(AIPlatformType.TONGYI, credentials);
         this.sessionID = credentials.sessionId || this.generateUUID();
         this.xsrfToken = credentials.xsrfToken || "";
         this.model = credentials.model || "tongyi-qwen3-plus-model";
+        
+        // 创建 axios 实例并设置默认配置
+        this.httpClient = axios.create({
+            baseURL: this.baseUrl,
+            timeout: 30000,
+            headers: {
+                "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
+                "sec-ch-ua": '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": '"Windows"',
+                "sec-fetch-dest": "empty",
+                "sec-fetch-mode": "cors",
+                "sec-fetch-site": "same-site",
+                "x-platform": "pc_tongyi",
+                "x-tw-from": "tongyi"
+            }
+        });
+
+        // 设置请求拦截器，动态添加认证相关的头部
+        this.httpClient.interceptors.request.use((config) => {
+            // 设置 cookie
+            if (this.credentials.cookies) {
+                config.headers.cookie = this.credentials.cookies;
+            }
+            
+            // 设置 xsrf token
+            if (this.xsrfToken) {
+                config.headers["x-xsrf-token"] = this.xsrfToken;
+            }
+            
+            return config;
+        });
     }
 
     /**
@@ -140,79 +175,35 @@ export class TongyiClient extends BaseAIClient {
             params: sessionParams
         };
 
-        const headers = {
-            accept: "text/event-stream",
-            "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
-            "content-type": "application/json",
-            priority: "u=1, i",
-            "sec-ch-ua": '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": '"Windows"',
-            "sec-fetch-dest": "empty",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-site": "same-site",
-            "x-platform": "pc_tongyi",
-            "x-xsrf-token": this.xsrfToken,
-            cookie: this.credentials.cookies || "",
-        };
-
         try {
-            // 创建带超时的请求
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), timeout);
+            // 设置超时
+            this.httpClient.defaults.timeout = timeout;
 
-            const response = await fetch(
-                `${this.baseUrl}/dialog/conversation`,
+            const response = await this.httpClient.post(
+                "/dialog/conversation",
+                requestBody,
                 {
-                    method: "POST",
-                    headers: headers,
-                    body: JSON.stringify(requestBody),
-                    signal: controller.signal,
+                    headers: {
+                        "content-type": "application/json",
+                        accept: "text/event-stream",
+                        priority: "u=1, i",
+                    },
+                    responseType: "stream"
                 }
             );
 
-            clearTimeout(timeoutId);
-
-            if (!response.ok) {
-                // 根据不同的状态码提供更详细的错误信息
-                let errorMessage = `Failed to send message: ${response.status} ${response.statusText}`;
-                switch (response.status) {
-                    case 401:
-                        errorMessage =
-                            "Authentication failed. Please check your credentials.";
-                        break;
-                    case 403:
-                        errorMessage =
-                            "Access forbidden. You don't have permission to access this resource.";
-                        break;
-                    case 429:
-                        errorMessage =
-                            "Rate limit exceeded. Please try again later.";
-                        break;
-                    case 500:
-                        errorMessage =
-                            "Internal server error. Please try again later.";
-                        break;
-                }
-                throw new Error(errorMessage);
-            }
-
             // 检查Content-Type是否为event-stream
-            const contentType = response.headers.get("content-type");
+            const contentType = response.headers["content-type"];
             if (!contentType || !contentType.includes("text/event-stream")) {
                 throw new Error("Response is not a valid event stream");
             }
 
             // 处理event-stream格式的数据流
-            const reader = response.body?.getReader();
-            if (!reader) {
-                throw new Error("Failed to get response body reader");
-            }
-
-            return this.processStream(reader);
+            const stream = response.data;
+            return this.processStream(stream);
         } catch (error: any) {
             // 区分不同类型的错误
-            if (error.name === "AbortError") {
+            if (error.code === "ECONNABORTED") {
                 throw new Error("Request timeout");
             }
             // 重新抛出其他错误
@@ -222,11 +213,11 @@ export class TongyiClient extends BaseAIClient {
 
     /**
      * 处理SSE流数据
-     * @param reader - 流读取器
+     * @param stream - axios流对象
      * @returns 异步可迭代的响应流
      */
     private async *processStream(
-        reader: ReadableStreamDefaultReader<Uint8Array>
+        stream: any
     ): AsyncIterable<string> {
         const decoder = new TextDecoder("utf-8");
         let buffer = "";
@@ -239,29 +230,8 @@ export class TongyiClient extends BaseAIClient {
         } as const;
 
         try {
-            while (true) {
-                const result = await reader.read();
-                if (result.done) {
-                    // 流正常结束，检查是否有未处理的数据
-                    if (buffer.trim()) {
-                        // 处理缓冲区中剩余的数据
-                        const lines = buffer.split("\n");
-                        for (const line of lines) {
-                            if (line.startsWith(`${EVENT_TYPES.DATA}: `)) {
-                                const data = line.slice(
-                                    `${EVENT_TYPES.DATA}: `.length
-                                );
-                                if (data === EVENT_TYPES.DONE) {
-                                    return;
-                                }
-                                yield* this.parseStreamData(data);
-                            }
-                        }
-                    }
-                    break;
-                }
-
-                buffer += decoder.decode(result.value, { stream: true });
+            for await (const chunk of stream) {
+                buffer += decoder.decode(chunk, { stream: true });
                 const lines = buffer.split("\n");
                 buffer = lines.pop() || "";
 
@@ -280,11 +250,25 @@ export class TongyiClient extends BaseAIClient {
                     }
                 }
             }
+
+            // 处理缓冲区中剩余的数据
+            if (buffer.trim()) {
+                const lines = buffer.split("\n");
+                for (const line of lines) {
+                    if (line.startsWith(`${EVENT_TYPES.DATA}: `)) {
+                        const data = line.slice(
+                            `${EVENT_TYPES.DATA}: `.length
+                        );
+                        if (data === EVENT_TYPES.DONE) {
+                            return;
+                        }
+                        yield* this.parseStreamData(data);
+                    }
+                }
+            }
         } catch (error: any) {
             // 流处理过程中发生错误
             throw new Error(`Error processing stream: ${error.message}`);
-        } finally {
-            await reader.cancel();
         }
     }
 
@@ -304,6 +288,24 @@ export class TongyiClient extends BaseAIClient {
                 if (content) {
                     yield content;
                 }
+            } else if (this.isTongyiAIResponse(parsedData)) {
+                // 处理TongyiAIResponse类型
+                const tongyiResponse = parsedData as TongyiAIResponse;
+                
+                // 检查是否有错误
+                if (tongyiResponse.errorCode && tongyiResponse.errorCode !== "NOT_LOGIN") {
+                    throw new Error(`Tongyi API error: ${tongyiResponse.errorCode}`);
+                }
+                
+                // 如果有内容则返回
+                if (tongyiResponse.content) {
+                    yield tongyiResponse.content;
+                }
+                
+                // 检查是否完成
+                if (tongyiResponse.msgStatus === "finished") {
+                    return;
+                }
             } else if (parsedData.data) {
                 // 可能的另一种格式
                 yield parsedData.data;
@@ -316,6 +318,32 @@ export class TongyiClient extends BaseAIClient {
             // 忽略无法解析的数据
             console.warn("Failed to parse stream data:", data);
         }
+    }
+
+    /**
+     * 检查对象是否为TongyiAIResponse类型
+     * @param obj - 要检查的对象
+     * @returns 是否为TongyiAIResponse类型
+     */
+    private isTongyiAIResponse(obj: any): obj is TongyiAIResponse {
+        return (
+            typeof obj === 'object' &&
+            obj !== null &&
+            'aiDisclaimer' in obj &&
+            'canFeedback' in obj &&
+            'canRegenerate' in obj &&
+            'canShare' in obj &&
+            'canShow' in obj &&
+            'errorCode' in obj &&
+            'extraType' in obj &&
+            'incremental' in obj &&
+            'msgStatus' in obj &&
+            'passValue' in obj &&
+            'sessionOpen' in obj &&
+            'sessionShare' in obj &&
+            'sessionWarnNew' in obj &&
+            'webSearch' in obj
+        );
     }
 
     /**
@@ -337,22 +365,7 @@ export class TongyiClient extends BaseAIClient {
      * @returns 返回模型列表信息
      */
     async getModels(): Promise<TongyiModelsResponse> {
-        const url = `${this.baseUrl}/dialog/api/chat/config/getModelSeries`;
-
-        const headers = {
-            accept: "*/*",
-            "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
-            "content-type": "application/json",
-            priority: "u=1, i",
-            "sec-ch-ua":
-                '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": '"Windows"',
-            "sec-fetch-dest": "empty",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-site": "same-site",
-            cookie: this.credentials.cookies || "",
-        };
+        const url = `/dialog/api/chat/config/getModelSeries`;
 
         const body = {
             configType: "MAIN_CHAT",
@@ -361,19 +374,15 @@ export class TongyiClient extends BaseAIClient {
         };
 
         try {
-            const response = await fetch(url, {
-                method: "POST",
-                headers: headers,
-                body: JSON.stringify(body),
+            const response = await this.httpClient.post(url, body, {
+                headers: {
+                    "content-type": "application/json",
+                    accept: "*/*",
+                    priority: "u=1, i",
+                }
             });
 
-            if (!response.ok) {
-                throw new Error(
-                    `Failed to fetch models: ${response.status} ${response.statusText}`
-                );
-            }
-
-            const data = (await response.json()) as TongyiModelsResponse;
+            const data = response.data as TongyiModelsResponse;
             return data;
         } catch (error: any) {
             throw new Error(`Error fetching Tongyi models: ${error.message}`);
@@ -492,5 +501,38 @@ export class TongyiClient extends BaseAIClient {
             xsrfToken: xsrfTokenMatch ? xsrfTokenMatch[1] : "",
             sessionId: sessionMatch ? sessionMatch[1] : "",
         };
+    }
+
+    /**
+     * 检查用户登录状态
+     * @returns 返回登录状态信息
+     */
+    async checkLoginStatus(): Promise<{ isLoggedIn: boolean; userInfo?: TongyiLoginStatusResponse["data"] }> {
+        const url = `/assistant/api/user/info/get?isLogin&c=tongyi-web`;
+
+        try {
+            const response = await this.httpClient.get(url, {
+                headers: {
+                    accept: "application/json, text/plain, */*",
+                    priority: "u=1, i",
+                }
+            });
+
+            const data: TongyiLoginStatusResponse = response.data;
+            
+            // 根据响应数据判断登录状态
+            // 如果返回了用户信息，则认为已登录
+            if (data.success && data.data && data.data.userId) {
+                return { 
+                    isLoggedIn: true, 
+                    userInfo: data.data
+                };
+            }
+            
+            return { isLoggedIn: false };
+        } catch (error: any) {
+            console.error("Failed to check login status:", error.message);
+            return { isLoggedIn: false };
+        }
     }
 }
