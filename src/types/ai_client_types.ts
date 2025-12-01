@@ -26,6 +26,7 @@ export interface SendMessageOptions {
     conversationId?: string;
     parentId?: string;
     timeout?: number;
+    stream?: boolean; // 是否启用流式传输，默认为true
     [key: string]: any; // 平台特定的选项
 }
 

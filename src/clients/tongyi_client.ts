@@ -73,13 +73,21 @@ export class TongyiClient extends BaseAIClient {
     /**
      * 发送普通消息
      * @param message - 要发送的消息
-     * @param options - 发送选项
-     * @returns 返回异步可迭代的响应流
+     * @param options - 发送选项，其中stream为false时返回完整字符串，为true时返回流
+     * @returns 如果options.stream为true则返回异步可迭代的响应流，否则返回完整响应字符串
      */
     async sendMessage(
         message: string,
+        options: SendMessageOptions & { stream: true }
+    ): Promise<AsyncIterable<string>>;
+    async sendMessage(
+        message: string,
+        options?: SendMessageOptions & { stream?: false }
+    ): Promise<string>;
+    async sendMessage(
+        message: string,
         options?: SendMessageOptions
-    ): Promise<AsyncIterable<string>> {
+    ): Promise<AsyncIterable<string> | string> {
         return this.sendTongyiMessage(message, options);
     }
 
@@ -93,10 +101,20 @@ export class TongyiClient extends BaseAIClient {
         message: string,
         options?: SendMessageOptions
     ): Promise<AsyncIterable<string>> {
-        return this.sendTongyiMessage(message, {
+        const result = await this.sendTongyiMessage(message, {
             ...options,
             messageType: "system",
         });
+        // 如果返回的是字符串，将其包装成一个只产生一次值的异步迭代器
+        if (typeof result === "string") {
+            async function* stringToIterator(
+                str: string
+            ): AsyncIterable<string> {
+                yield str;
+            }
+            return stringToIterator(result);
+        }
+        return result;
     }
 
     /**
@@ -109,7 +127,20 @@ export class TongyiClient extends BaseAIClient {
         message: string,
         options?: SendMessageOptions
     ): Promise<AsyncIterable<string>> {
-        return this.sendTongyiMessage(message, { ...options, deepThink: true });
+        const result = await this.sendTongyiMessage(message, {
+            ...options,
+            deepThink: true,
+        });
+        // 如果返回的是字符串，将其包装成一个只产生一次值的异步迭代器
+        if (typeof result === "string") {
+            async function* stringToIterator(
+                str: string
+            ): AsyncIterable<string> {
+                yield str;
+            }
+            return stringToIterator(result);
+        }
+        return result;
     }
 
     /**
@@ -122,17 +153,27 @@ export class TongyiClient extends BaseAIClient {
         message: string,
         options?: SendMessageOptions
     ): Promise<AsyncIterable<string>> {
-        return this.sendTongyiMessage(message, {
+        const result = await this.sendTongyiMessage(message, {
             ...options,
             searchType: "off",
         });
+        // 如果返回的是字符串，将其包装成一个只产生一次值的异步迭代器
+        if (typeof result === "string") {
+            async function* stringToIterator(
+                str: string
+            ): AsyncIterable<string> {
+                yield str;
+            }
+            return stringToIterator(result);
+        }
+        return result;
     }
 
     /**
      * 发送通义千问消息的内部实现
      * @param message - 要发送的消息
      * @param options - 发送选项
-     * @returns 返回异步可迭代的响应流
+     * @returns 如果options.stream为true则返回异步可迭代的响应流，否则返回完整响应字符串
      */
     private async sendTongyiMessage(
         message: string,
@@ -141,7 +182,7 @@ export class TongyiClient extends BaseAIClient {
             deepThink?: boolean;
             searchType?: string;
         }
-    ): Promise<AsyncIterable<string>> {
+    ): Promise<AsyncIterable<string> | string> {
         // 确认模型已经选择
         if (!this.model) {
             throw new Error(
@@ -150,6 +191,7 @@ export class TongyiClient extends BaseAIClient {
         }
 
         const timeout = options?.timeout || 30000; // 默认30秒超时
+        const stream = options?.stream !== false; // 默认启用流式传输
 
         // 构建基础消息内容
         const messageContent: TongyiMessageContent = {
@@ -263,8 +305,20 @@ export class TongyiClient extends BaseAIClient {
             }
 
             // 处理event-stream格式的数据流
-            const stream = response.data;
-            return this.processStream(stream);
+            const responseData = response.data;
+
+            // 如果不启用流式传输，收集完整响应并返回字符串
+            if (!stream) {
+                let fullResponse = "";
+                const streamProcessor = this.processStream(responseData);
+                for await (const chunk of streamProcessor) {
+                    fullResponse += chunk;
+                }
+                return fullResponse;
+            }
+
+            // 否则返回流处理器
+            return this.processStream(responseData);
         } catch (error: any) {
             // 区分不同类型的错误
             if (error.code === "ECONNABORTED") {
@@ -341,9 +395,13 @@ export class TongyiClient extends BaseAIClient {
                     if (trimmedLine === EVENT_TYPES.DONE) {
                         return; // 结束流处理
                     } else if (trimmedLine.startsWith(EVENT_TYPES.DATA)) {
-                        yield* this.parseStreamData(
-                            trimmedLine.slice(EVENT_TYPES.DATA.length)
+                        const dataPayload = trimmedLine.slice(
+                            EVENT_TYPES.DATA.length
                         );
+                        // 只有当数据不为空时才处理
+                        if (dataPayload.trim()) {
+                            yield * this.parseStreamData(dataPayload);
+                        }
                     } else if (trimmedLine.startsWith(EVENT_TYPES.ERROR)) {
                         throw new Error(
                             `Error received from server: ${trimmedLine.slice(
@@ -360,9 +418,13 @@ export class TongyiClient extends BaseAIClient {
                 if (trimmedBuffer === EVENT_TYPES.DONE) {
                     return;
                 } else if (trimmedBuffer.startsWith(EVENT_TYPES.DATA)) {
-                    yield* this.parseStreamData(
-                        trimmedBuffer.slice(EVENT_TYPES.DATA.length)
+                    const dataPayload = trimmedBuffer.slice(
+                        EVENT_TYPES.DATA.length
                     );
+                    // 只有当数据不为空时才处理
+                    if (dataPayload.trim()) {
+                        yield * this.parseStreamData(dataPayload);
+                    }
                 } else if (trimmedBuffer.startsWith(EVENT_TYPES.ERROR)) {
                     throw new Error(
                         `Error received from server: ${trimmedBuffer.slice(
@@ -387,15 +449,21 @@ export class TongyiClient extends BaseAIClient {
         try {
             parsedData = JSON.parse(data);
         } catch (e) {
+            // 如果解析失败，记录警告但不中断流处理
             console.warn("Failed to parse stream data:", data);
             return;
         }
 
-        this.sessionParams.parentMsgId = parsedData.msgId;
+        // 更新会话参数
+        if (parsedData.msgId) {
+            this.sessionParams.parentMsgId = parsedData.msgId;
+        }
         if (parsedData.sessionId) {
             this.sessionParams.sessionId = parsedData.sessionId;
         }
-        if (!parsedData.contents) {
+
+        // 处理内容
+        if (!parsedData.contents || parsedData.contents.length === 0) {
             yield "";
         } else {
             const [reply, ...other] = parsedData.contents;
