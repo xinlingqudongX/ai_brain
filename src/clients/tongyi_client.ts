@@ -312,7 +312,7 @@ export class TongyiClient extends BaseAIClient {
                 let fullResponse = "";
                 const streamProcessor = this.processStream(responseData);
                 for await (const chunk of streamProcessor) {
-                    fullResponse += chunk;
+                    fullResponse = chunk;
                 }
                 return fullResponse;
             }
