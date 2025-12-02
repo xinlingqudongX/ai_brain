@@ -3,15 +3,11 @@
  */
 
 import { BaseAIClient } from "../api/endpoints/base_ai_client";
-import { ProtocolAdapterManager } from "../api/protocol/protocol_adapter_manager";
-import { SSEAdapter } from "../api/protocol/sse_adapter";
-import { MockAdapter } from "../api/protocol/mock_adapter";
 import type {
     ClientCredentials,
     SendMessageOptions,
 } from "../types/ai_client_types";
 import { AIPlatformType } from "../types/ai_client_types";
-import { ProtocolType } from "../api/protocol/protocol_types";
 import axios, { AxiosInstance } from "axios";
 import type {
     DeepSeekCreateSessionResponse,
@@ -19,12 +15,12 @@ import type {
 } from "../types/deepseek_types";
 
 /**
- * DeepSeek客户端实现 - 使用统一协议适配器
+ * DeepSeek客户端实现
  */
 export class DeepSeekClient extends BaseAIClient {
     private authorization: string;
     public baseUrl: string = "https://chat.deepseek.com";
-    private protocolAdapter: ProtocolAdapterManager;
+
     private httpClient: AxiosInstance;
     private currentSession: DeepSeekSession | null = null;
 
@@ -70,16 +66,6 @@ export class DeepSeekClient extends BaseAIClient {
 
             return config;
         });
-
-        // 初始化协议适配器
-        this.protocolAdapter = new ProtocolAdapterManager();
-
-        // 根据环境选择适配器
-        if (credentials.useMock || process.env.NODE_ENV === "test") {
-            this.protocolAdapter.setAdapter(new MockAdapter());
-        } else {
-            this.protocolAdapter.setAdapter(new SSEAdapter());
-        }
     }
 
     /**
@@ -139,18 +125,22 @@ export class DeepSeekClient extends BaseAIClient {
         return this.currentSession ? this.currentSession.id : null;
     }
 
-    /** 聊天会话 */
+    /**
+     * 聊天会话
+     * 使用axios处理event-stream格式的响应
+     */
     public async conversation() {
-        // 使用统一协议适配器
-        const request = {
-            url: `${this.baseUrl}/api/v0/chat/completion`,
+        // 如果还没有会话，先创建一个
+        if (!this.currentSession) {
+            await this.createSession();
+        }
+
+        // 使用axios发送流式请求
+        const requestConfig = {
             method: "POST" as const,
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: this.authorization,
-            },
-            body: {
-                chat_session_id: this.generateUUID(),
+            url: "/api/v0/chat/completion",
+            data: {
+                chat_session_id: this.currentSession?.id || this.generateUUID(),
                 parent_message_id: null,
                 prompt: "",
                 ref_file_ids: [],
@@ -158,19 +148,113 @@ export class DeepSeekClient extends BaseAIClient {
                 search_enabled: true,
                 client_stream_id: this.generateClientStreamId(),
             },
+            responseType: "stream" as const,
+            headers: {
+                "Content-Type": "application/json",
+            },
         };
 
         try {
-            // 使用协议适配器发送流式请求
-            const streamResponses = this.protocolAdapter.sendStream(request);
+            const response = await this.httpClient.request(requestConfig);
 
-            // 创建异步迭代器
+            // 创建异步迭代器来处理event-stream
             const asyncIterator = {
                 async *[Symbol.asyncIterator]() {
-                    for await (const response of streamResponses) {
-                        if (response.type === "chunk" && response.data) {
-                            yield response.data;
+                    const stream = response.data;
+                    const decoder = new TextDecoder("utf-8");
+                    let buffer = "";
+
+                    // 定义SSE事件类型
+                    const SSE_EVENTS = {
+                        DATA: "data:",
+                        DONE: "data: [DONE]",
+                    };
+
+                    try {
+                        for await (const chunk of stream) {
+                            const text = decoder.decode(chunk, {
+                                stream: true,
+                            });
+                            buffer += text;
+
+                            // 按行处理缓冲区中的数据
+                            let lines = buffer.split("\n");
+                            // 保留最后一行在缓冲区中，因为它可能不完整
+                            buffer = lines.pop() || "";
+
+                            for (const line of lines) {
+                                const trimmedLine = line.trim();
+                                if (trimmedLine === SSE_EVENTS.DONE) {
+                                    return; // 结束流处理
+                                } else if (
+                                    trimmedLine.startsWith(SSE_EVENTS.DATA)
+                                ) {
+                                    const dataPayload = trimmedLine
+                                        .slice(SSE_EVENTS.DATA.length)
+                                        .trim();
+                                    // 只有当数据不为空时才处理
+                                    if (dataPayload) {
+                                        try {
+                                            const parsedData =
+                                                JSON.parse(dataPayload);
+                                            // 提取内容
+                                            const content =
+                                                parsedData.choices?.[0]?.delta
+                                                    ?.content || "";
+                                            if (content) {
+                                                yield content;
+                                            }
+                                        } catch (parseError) {
+                                            console.warn(
+                                                "Failed to parse stream data:",
+                                                dataPayload
+                                            );
+                                        }
+                                    }
+                                }
+                            }
                         }
+
+                        // 处理最后可能剩余的不完整行
+                        if (buffer.trim()) {
+                            const trimmedBuffer = buffer.trim();
+                            if (trimmedBuffer === SSE_EVENTS.DONE) {
+                                return;
+                            } else if (
+                                trimmedBuffer.startsWith(SSE_EVENTS.DATA)
+                            ) {
+                                const dataPayload = trimmedBuffer
+                                    .slice(SSE_EVENTS.DATA.length)
+                                    .trim();
+                                // 只有当数据不为空时才处理
+                                if (dataPayload) {
+                                    try {
+                                        const parsedData =
+                                            JSON.parse(dataPayload);
+                                        // 提取内容
+                                        const content =
+                                            parsedData.choices?.[0]?.delta
+                                                ?.content || "";
+                                        if (content) {
+                                            yield content;
+                                        }
+                                    } catch (parseError) {
+                                        console.warn(
+                                            "Failed to parse stream data:",
+                                            dataPayload
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    } catch (streamError) {
+                        throw new Error(
+                            `Stream processing failed: ${
+                                streamError instanceof Error
+                                    ? streamError.message
+                                    : "Unknown error"
+                            }`
+                        );
                     }
                 },
             };
@@ -200,54 +284,139 @@ export class DeepSeekClient extends BaseAIClient {
             await this.createSession();
         }
 
-        const requestBody = {
-            message: message,
-            stream: true,
-            chat_session_id:
-                options?.chatSessionId ||
-                this.currentSession?.id ||
-                this.generateUUID(),
-            parent_message_id: options?.parentMessageId || null,
-            timestamp: Date.now(),
+        // 使用axios发送流式请求
+        const requestConfig = {
+            method: "POST" as const,
+            url: "/api/v0/chat/completion",
+            data: {
+                message: message,
+                stream: true,
+                chat_session_id:
+                    options?.chatSessionId ||
+                    this.currentSession?.id ||
+                    this.generateUUID(),
+                parent_message_id: options?.parentMessageId || null,
+                timestamp: Date.now(),
+            },
+            responseType: "stream" as const,
+            headers: {
+                "Content-Type": "application/json",
+            },
         };
 
-        // 创建异步生成器来处理流式响应
-        const self = this;
-        async function* streamResponse(): AsyncIterable<string> {
-            const request = {
-                url: `${self.baseUrl}/api/v0/chat/completion`,
-                method: "POST" as const,
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: self.authorization,
+        try {
+            const response = await this.httpClient.request(requestConfig);
+
+            // 创建异步生成器来处理流式响应
+            const asyncIterator = {
+                async *[Symbol.asyncIterator]() {
+                    const stream = response.data;
+                    const decoder = new TextDecoder("utf-8");
+                    let buffer = "";
+
+                    // 定义SSE事件类型
+                    const SSE_EVENTS = {
+                        DATA: "data:",
+                        DONE: "data: [DONE]",
+                    };
+
+                    try {
+                        for await (const chunk of stream) {
+                            const text = decoder.decode(chunk, {
+                                stream: true,
+                            });
+                            buffer += text;
+
+                            // 按行处理缓冲区中的数据
+                            let lines = buffer.split("\n");
+                            // 保留最后一行在缓冲区中，因为它可能不完整
+                            buffer = lines.pop() || "";
+
+                            for (const line of lines) {
+                                const trimmedLine = line.trim();
+                                if (trimmedLine === SSE_EVENTS.DONE) {
+                                    return; // 结束流处理
+                                } else if (
+                                    trimmedLine.startsWith(SSE_EVENTS.DATA)
+                                ) {
+                                    const dataPayload = trimmedLine
+                                        .slice(SSE_EVENTS.DATA.length)
+                                        .trim();
+                                    // 只有当数据不为空时才处理
+                                    if (dataPayload) {
+                                        try {
+                                            const parsedData =
+                                                JSON.parse(dataPayload);
+                                            // 提取内容
+                                            const content =
+                                                parsedData.choices?.[0]?.delta
+                                                    ?.content || "";
+                                            if (content) {
+                                                yield content;
+                                            }
+                                        } catch (parseError) {
+                                            console.warn(
+                                                "Failed to parse stream data:",
+                                                dataPayload
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 处理最后可能剩余的不完整行
+                        if (buffer.trim()) {
+                            const trimmedBuffer = buffer.trim();
+                            if (trimmedBuffer === SSE_EVENTS.DONE) {
+                                return;
+                            } else if (
+                                trimmedBuffer.startsWith(SSE_EVENTS.DATA)
+                            ) {
+                                const dataPayload = trimmedBuffer
+                                    .slice(SSE_EVENTS.DATA.length)
+                                    .trim();
+                                // 只有当数据不为空时才处理
+                                if (dataPayload) {
+                                    try {
+                                        const parsedData =
+                                            JSON.parse(dataPayload);
+                                        // 提取内容
+                                        const content =
+                                            parsedData.choices?.[0]?.delta
+                                                ?.content || "";
+                                        if (content) {
+                                            yield content;
+                                        }
+                                    } catch (parseError) {
+                                        console.warn(
+                                            "Failed to parse stream data:",
+                                            dataPayload
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    } catch (streamError) {
+                        throw new Error(
+                            `Stream processing failed: ${
+                                streamError instanceof Error
+                                    ? streamError.message
+                                    : "Unknown error"
+                            }`
+                        );
+                    }
                 },
-                body: requestBody,
             };
 
-            try {
-                const streamResponses =
-                    self.protocolAdapter.sendStream(request);
-
-                for await (const response of streamResponses) {
-                    if (response.type === "chunk" && response.data) {
-                        // 提取内容
-                        const content =
-                            response.data.choices?.[0]?.delta?.content || "";
-                        if (content) {
-                            yield content;
-                        }
-                    }
-                }
-            } catch (error) {
-                throw new Error(
-                    `Send message failed: ${
-                        error instanceof Error ? error.message : "Unknown error"
-                    }`
-                );
-            }
+            return asyncIterator;
+        } catch (error) {
+            throw new Error(
+                `Send message failed: ${
+                    error instanceof Error ? error.message : "Unknown error"
+                }`
+            );
         }
-
-        return streamResponse();
     }
 
     /**
@@ -255,16 +424,8 @@ export class DeepSeekClient extends BaseAIClient {
      * @returns 返回用户信息
      */
     async getUserInfo(): Promise<any> {
-        const request = {
-            url: `${this.baseUrl}/user/info`,
-            method: "GET" as const,
-            headers: {
-                Authorization: this.authorization,
-            },
-        };
-
         try {
-            const response = await this.protocolAdapter.send(request);
+            const response = await this.httpClient.get("/user/info");
             return response.data;
         } catch (error) {
             // 如果失败，返回模拟数据
@@ -318,24 +479,4 @@ export class DeepSeekClient extends BaseAIClient {
     /**
      * 获取协议适配器（用于测试和调试）
      */
-    getProtocolAdapter(): ProtocolAdapterManager {
-        return this.protocolAdapter;
-    }
-
-    /**
-     * 设置协议适配器类型
-     * @param type - 适配器类型
-     */
-    setProtocolType(type: ProtocolType): void {
-        switch (type) {
-            case ProtocolType.MOCK:
-                this.protocolAdapter.setAdapter(new MockAdapter());
-                break;
-            case ProtocolType.SSE:
-                this.protocolAdapter.setAdapter(new SSEAdapter());
-                break;
-            default:
-                throw new Error(`Unsupported protocol type: ${type}`);
-        }
-    }
 }
