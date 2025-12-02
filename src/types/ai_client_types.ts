@@ -6,7 +6,6 @@ export const AIPlatformType = {
     TONGYI: "tongyi",
     BAIDU: "baidu",
     DEEPSEEK: "deepseek",
-    QWEN: "qwen",
 } as const;
 export type AIPlatformType =
     (typeof AIPlatformType)[keyof typeof AIPlatformType];
