@@ -345,6 +345,7 @@ export class DeepSeekClient extends BaseAIClient {
                     responseType: "stream",
                     headers: {
                         "Content-Type": "application/json",
+
                         "X-Ds-Pow-Response": pow_response,
                     },
                 }
