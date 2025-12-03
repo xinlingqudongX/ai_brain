@@ -5,7 +5,6 @@ import { ChatGLMClient } from "../../clients/chatglm_client";
 import { TongyiClient } from "../../clients/tongyi_client";
 import { BaiduClient } from "../../clients/baidu_client";
 import { DeepSeekClient } from "../../clients/deepseek_client";
-import { QwenClient } from "../../clients/qwen_client";
 
 /**
  * AI客户端工厂类
@@ -31,8 +30,6 @@ export class AIClientFactory {
                 return new BaiduClient(credentials);
             case AIPlatformType.DEEPSEEK:
                 return new DeepSeekClient(credentials);
-            case AIPlatformType.QWEN:
-                return new QwenClient(credentials);
             default:
                 throw new Error(`Unsupported platform: ${platform}`);
         }

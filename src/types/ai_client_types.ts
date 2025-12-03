@@ -23,9 +23,10 @@ export interface ClientCredentials {
  */
 export interface SendMessageOptions {
     conversationId?: string;
-    parentId?: string;
+    web_search?: boolean;
+    thinking?: boolean;
     timeout?: number;
-    stream?: boolean; // 是否启用流式传输，默认为true
+    stream?: boolean;
     [key: string]: any; // 平台特定的选项
 }
 
@@ -34,13 +35,13 @@ export interface SendMessageOptions {
  */
 export interface AIPlatformClientInterface {
     baseUrl: string; // 平台API的基础URL
-    
+
     /**
      * 创建会话
      * @returns 返回会话ID
      */
-    createSession(): Promise<string>;
-    
+    createSession(): Promise<any>;
+
     /**
      * 删除会话
      * @param sessionId - 会话ID

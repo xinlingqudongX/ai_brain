@@ -10,9 +10,17 @@ import type {
 import { AIPlatformType } from "../types/ai_client_types";
 import axios, { AxiosInstance } from "axios";
 import type {
+    DeepSeekChatMessageRequest,
+    DeepSeekCreatePowChallengeRequest,
+    DeepSeekCreatePowChallengeResponse,
     DeepSeekCreateSessionResponse,
+    DeepSeekPowChallengeData,
     DeepSeekSession,
+    DeepSeekStopStreamRequest,
+    DeepSeekStopStreamResponse,
 } from "../types/deepseek_types";
+import dayjs from "dayjs";
+import { signParams } from "../utils/deepseek_utils";
 
 /**
  * DeepSeek客户端实现
@@ -23,6 +31,15 @@ export class DeepSeekClient extends BaseAIClient {
 
     private httpClient: AxiosInstance;
     private currentSession: DeepSeekSession | null = null;
+    private readonly sessionParams = {
+        chat_session_id: "",
+        client_stream_id: `${dayjs().format(
+            "YYYYMMDD"
+        )}-${this.generateUUID()}`,
+        search_enabled: false,
+        thinking_enabled: false,
+    };
+    private readonly sessionMessages = new Map<string, string[]>();
 
     constructor(credentials: ClientCredentials) {
         super(AIPlatformType.DEEPSEEK, credentials);
@@ -36,19 +53,25 @@ export class DeepSeekClient extends BaseAIClient {
                 accept: "*/*",
                 "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
                 "content-type": "application/json",
-                "sec-ch-ua":
-                    '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
-                "sec-ch-ua-mobile": "?0",
-                "sec-ch-ua-platform": '"Windows"',
-                "sec-fetch-dest": "empty",
-                "sec-fetch-mode": "cors",
-                "sec-fetch-site": "same-origin",
-                "x-app-version": "20241129.1",
-                "x-client-locale": "zh_CN",
-                "x-client-platform": "web",
-                "x-client-version": "1.5.0",
-                "x-debug-lite-model-channel": "prod",
-                "x-debug-model-channel": "prod",
+                dnt: "1",
+                origin: "https://chat.deepseek.com",
+                referer: "https://chat.deepseek.com/",
+                Priority: "u=1,i",
+                // "sec-ch-ua":
+                //     '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
+                // "sec-ch-ua-mobile": "?0",
+                // "sec-ch-ua-platform": '"Windows"',
+                // "sec-fetch-dest": "empty",
+                // "sec-fetch-mode": "cors",
+                // "sec-fetch-site": "same-origin",
+                // "User-Agent":
+                //     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.7093.184 Safari/537.36",
+                // "x-app-version": "20241129.1",
+                // "x-client-locale": "zh_CN",
+                // "x-client-platform": "web",
+                // "x-client-version": "1.5.0",
+                // "x-debug-lite-model-channel": "prod",
+                // "x-debug-model-channel": "prod",
             },
         });
 
@@ -280,32 +303,52 @@ export class DeepSeekClient extends BaseAIClient {
         options?: SendMessageOptions
     ): Promise<AsyncIterable<string>> {
         // 如果还没有会话，先创建一个
-        if (!this.currentSession) {
-            await this.createSession();
+        if (!this.sessionParams.chat_session_id) {
+            const sessionId = await this.createSession();
+            this.sessionParams.chat_session_id = sessionId;
+            this.sessionMessages.set(sessionId, []);
         }
 
+        options?.thinking ?? (this.sessionParams.thinking_enabled = true);
+        options?.web_search ?? (this.sessionParams.search_enabled = true);
+
+        const total =
+            this.sessionMessages.get(this.sessionParams.chat_session_id)
+                ?.length ?? 0;
         // 使用axios发送流式请求
-        const requestConfig = {
-            method: "POST" as const,
-            url: "/api/v0/chat/completion",
-            data: {
-                message: message,
-                stream: true,
-                chat_session_id:
-                    options?.chatSessionId ||
-                    this.currentSession?.id ||
-                    this.generateUUID(),
-                parent_message_id: options?.parentMessageId || null,
-                timestamp: Date.now(),
-            },
-            responseType: "stream" as const,
-            headers: {
-                "Content-Type": "application/json",
-            },
+        const requestConfig: DeepSeekChatMessageRequest = {
+            prompt: message,
+            chat_session_id: this.sessionParams.chat_session_id,
+            client_stream_id: this.sessionParams.client_stream_id,
+            parent_message_id: total ? total * 2 : null,
+            ref_file_ids: [],
+            search_enabled: this.sessionParams.search_enabled, // 是否启用搜索
+            thinking_enabled: this.sessionParams.thinking_enabled, // 是否启用深度思考,
         };
 
+        // 请求挑战
+        const challenge = await this.createPowChallenge();
+        const pow_response = await signParams({
+            algorithm: challenge.algorithm,
+            answer: 79808,
+            challenge: challenge.challenge,
+            salt: challenge.salt,
+            signature: challenge.signature,
+            target_path: challenge.target_path,
+        });
+
         try {
-            const response = await this.httpClient.request(requestConfig);
+            const response = await this.httpClient.post(
+                "/api/v0/chat/completion",
+                requestConfig,
+                {
+                    responseType: "stream",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-Ds-Pow-Response": pow_response,
+                    },
+                }
+            );
 
             // 创建异步生成器来处理流式响应
             const asyncIterator = {
@@ -477,6 +520,78 @@ export class DeepSeekClient extends BaseAIClient {
     }
 
     /**
-     * 获取协议适配器（用于测试和调试）
+     * 停止消息流
+     * @param messageId - 要停止的消息ID
+     * @returns 返回停止操作的结果
      */
+    async stopMessageStream(
+        messageId: number
+    ): Promise<DeepSeekStopStreamResponse> {
+        // 确保有有效的会话ID
+        if (!this.sessionParams.chat_session_id) {
+            throw new Error(
+                "No active session. Please create a session first."
+            );
+        }
+
+        const requestBody: DeepSeekStopStreamRequest = {
+            chat_session_id: this.sessionParams.chat_session_id,
+            message_id: messageId,
+        };
+
+        try {
+            const response =
+                await this.httpClient.post<DeepSeekStopStreamResponse>(
+                    "/api/v0/chat/stop_stream",
+                    requestBody,
+                    {
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                    }
+                );
+
+            return response.data;
+        } catch (error) {
+            throw new Error(
+                `Failed to stop message stream: ${
+                    error instanceof Error ? error.message : "Unknown error"
+                }`
+            );
+        }
+    }
+
+    /**
+     * 创建POW挑战
+     * @param targetPath - 目标路径
+     * @returns 返回POW挑战数据
+     */
+    async createPowChallenge(
+        targetPath: string = "/api/v0/chat/completion"
+    ): Promise<DeepSeekPowChallengeData> {
+        const requestBody: DeepSeekCreatePowChallengeRequest = {
+            target_path: targetPath,
+        };
+
+        try {
+            const response =
+                await this.httpClient.post<DeepSeekCreatePowChallengeResponse>(
+                    "/api/v0/chat/create_pow_challenge",
+                    requestBody,
+                    {
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                    }
+                );
+
+            return response.data.data.biz_data.challenge;
+        } catch (error) {
+            throw new Error(
+                `Failed to create POW challenge: ${
+                    error instanceof Error ? error.message : "Unknown error"
+                }`
+            );
+        }
+    }
 }

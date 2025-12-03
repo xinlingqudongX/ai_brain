@@ -100,3 +100,95 @@ export interface DeepSeekSession {
     /** 会话更新时间戳 */
     updatedAt: number;
 }
+
+/**
+ * DeepSeek聊天消息请求体
+ */
+export interface DeepSeekChatMessageRequest {
+    /** 会话ID */
+    chat_session_id: string;
+    
+    /** 父消息ID */
+    parent_message_id: number | null;
+    
+    /** 用户输入的提示 */
+    prompt: string;
+    
+    /** 引用的文件IDs */
+    ref_file_ids: string[];
+    
+    /** 是否启用深度思考 */
+    thinking_enabled: boolean;
+    
+    /** 是否启用搜索 */
+    search_enabled: boolean;
+    
+    /** 客户端流ID */
+    client_stream_id: string;
+}
+
+/**
+ * DeepSeek停止消息流请求体
+ */
+export interface DeepSeekStopStreamRequest {
+    /** 会话ID */
+    chat_session_id: string;
+    
+    /** 消息ID */
+    message_id: number;
+}
+
+/**
+ * DeepSeek停止消息流响应
+ */
+export interface DeepSeekStopStreamResponse {
+    /** 是否成功 */
+    success: boolean;
+    
+    /** 错误信息（如果有） */
+    error?: string;
+}
+
+/**
+ * DeepSeek POW挑战请求体
+ */
+export interface DeepSeekCreatePowChallengeRequest {
+    /** 目标路径 */
+    target_path: string;
+}
+
+/**
+ * DeepSeek POW挑战数据
+ */
+export interface DeepSeekPowChallengeData {
+    /** 算法 */
+    algorithm: string;
+    
+    /** 挑战值 */
+    challenge: string;
+    
+    /** 盐值 */
+    salt: string;
+    
+    /** 签名 */
+    signature: string;
+    
+    /** 难度 */
+    difficulty: number;
+    
+    /** 过期时间戳 */
+    expire_at: number;
+    
+    /** 过期时间间隔（毫秒） */
+    expire_after: number;
+    
+    /** 目标路径 */
+    target_path: string;
+}
+
+/**
+ * DeepSeek POW挑战响应
+ */
+export interface DeepSeekCreatePowChallengeResponse extends DeepSeekResponse<DeepSeekBizData<{
+    challenge: DeepSeekPowChallengeData;
+}>> {}

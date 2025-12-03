@@ -41,8 +41,7 @@ export { UnifiedAIClient } from './api/endpoints/unified_ai_client';
 export { ChatGLMClient } from './clients/chatglm_client';
 export { TongyiClient } from './clients/tongyi_client';
 export { BaiduClient } from './clients/baidu_client';
-export { DeepSeekClient } from './clients/deepseek_client';
-export { QwenClient } from './clients/qwen_client';
+export { DeepSeekClient } from "./clients/deepseek_client";
 
 // 默认导出统一客户端
 import { UnifiedAIClient } from './api/endpoints/unified_ai_client';

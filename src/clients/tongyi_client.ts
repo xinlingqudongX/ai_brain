@@ -659,7 +659,6 @@ export class TongyiClient extends BaseAIClient {
      */
     async clearConversationContext(): Promise<void> {
         // 生成新的会话ID以清除上下文
-        this.sessionID = this.generateUUID();
     }
 
     /**

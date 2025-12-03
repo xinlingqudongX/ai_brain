@@ -13,8 +13,7 @@ export abstract class BaseAIClient implements AIPlatformClientInterface {
     protected credentials: ClientCredentials;
     protected platform: AIPlatformType;
     public baseUrl: string = "";
-    public sessionID: string = '';
-    
+
     constructor(platform: AIPlatformType, credentials: ClientCredentials) {
         this.platform = platform;
         this.credentials = credentials;
@@ -124,22 +123,13 @@ export abstract class BaseAIClient implements AIPlatformClientInterface {
      * 创建会话（通用实现）
      * @returns 返回会话ID
      */
-    async createSession(): Promise<string> {
-        // 默认实现，子类可以覆盖
-        this.sessionID = this.generateUUID();
-        return this.sessionID;
-    }
+    async createSession(): Promise<any> {}
 
     /**
      * 删除会话（通用实现）
      * @param sessionId - 会话ID
      */
-    async deleteSession(sessionId: string): Promise<void> {
-        // 默认实现，子类可以覆盖
-        if (sessionId === this.sessionID) {
-            this.sessionID = '';
-        }
-    }
+    async deleteSession(sessionId: string): Promise<void> {}
 
     /**
      * 选择模型（通用实现，子类可以覆盖）
