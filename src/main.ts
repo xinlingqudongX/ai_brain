@@ -6,6 +6,7 @@ import {
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
+import { join } from 'path';
 const PackageJson = require('../package.json');
 
 async function bootstrap() {
@@ -13,6 +14,12 @@ async function bootstrap() {
     AppModule,
     new FastifyAdapter({ logger: true }),
   );
+
+  // 配置静态文件服务
+  app.useStaticAssets({
+    root: join(__dirname, '..', 'src', 'static'),
+    prefix: '/',
+  });
 
   const configService = app.get(ConfigService);
   const port =

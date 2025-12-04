@@ -6,10 +6,8 @@ import {
   UpdateDateColumn,
   ManyToMany,
   JoinTable,
-  OneToMany,
 } from 'typeorm';
 import { RoleEntity } from './role.entity';
-import { TimelineEventEntity } from './timeline-event.entity';
 
 /**
  * Agent实体
@@ -50,9 +48,9 @@ export class AgentEntity {
   })
   roles: RoleEntity[];
 
-  /** 关联的时间线事件 */
-  @OneToMany(() => TimelineEventEntity, (event) => event.agent)
-  timelineEvents: TimelineEventEntity[];
+  /** Agent订阅的事件列表 */
+  @Column({ type: 'jsonb', default: [], comment: 'Agent订阅的事件列表' })
+  subscribedEvents: string[];
 
   /** 创建时间 */
   @CreateDateColumn({ comment: '创建时间' })

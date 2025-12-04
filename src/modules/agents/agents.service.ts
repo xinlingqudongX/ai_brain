@@ -39,6 +39,7 @@ export class AgentsService {
       description: createDto.description,
       goal: createDto.goal,
       config: createDto.config,
+      subscribedEvents: createDto.subscribedEvents || [],
     });
 
     if (createDto.roleIds && createDto.roleIds.length > 0) {
@@ -120,6 +121,7 @@ export class AgentsService {
       goal: updateDto.goal,
       config: updateDto.config,
       isActive: updateDto.isActive,
+      subscribedEvents: updateDto.subscribedEvents,
     });
 
     const updatedAgent = await this.agentRepository.save(agent);

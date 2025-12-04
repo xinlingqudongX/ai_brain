@@ -7,6 +7,7 @@ const CreateAgentSchema = z.object({
   goal: z.string().min(1).describe('Agent目标'),
   config: z.record(z.string(), z.any()).optional().describe('Agent配置'),
   roleIds: z.array(z.string().uuid()).default([]).describe('关联的角色ID列表'),
+  subscribedEvents: z.array(z.string()).default([]).describe('订阅的事件列表'),
 });
 
 const UpdateAgentSchema = z.object({
@@ -16,6 +17,7 @@ const UpdateAgentSchema = z.object({
   config: z.record(z.string(), z.any()).optional().describe('Agent配置'),
   isActive: z.boolean().optional().describe('是否激活'),
   roleIds: z.array(z.string().uuid()).optional().describe('关联的角色ID列表'),
+  subscribedEvents: z.array(z.string()).optional().describe('订阅的事件列表'),
 });
 
 const AgentIdSchema = z.object({
