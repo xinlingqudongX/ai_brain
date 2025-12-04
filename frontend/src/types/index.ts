@@ -16,6 +16,7 @@ export interface Role {
   name: string;
   description: string;
   prompt: string;
+  group: string;
   isActive: boolean;
   capabilities: Capability[];
 }
@@ -25,6 +26,7 @@ export interface Capability {
   name: string;
   description: string;
   prompt: string;
+  group: string;
   isActive: boolean;
 }
 

@@ -28,7 +28,10 @@ export class CapabilitiesService {
       throw new ConflictException('Capability with this name already exists');
     }
 
-    const capability = this.capabilityRepository.create(createDto);
+    const capability = this.capabilityRepository.create({
+      ...createDto,
+      group: createDto.group,
+    });
     return await this.capabilityRepository.save(capability);
   }
 
@@ -82,7 +85,10 @@ export class CapabilitiesService {
       }
     }
 
-    Object.assign(capability, updateDto);
+    Object.assign(capability, {
+      ...updateDto,
+      group: updateDto.group,
+    });
     return await this.capabilityRepository.save(capability);
   }
 

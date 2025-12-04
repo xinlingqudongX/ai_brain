@@ -31,6 +31,7 @@ export class RolesService {
       name: createDto.name,
       description: createDto.description,
       prompt: createDto.prompt,
+      group: createDto.group,
     });
 
     if (createDto.capabilityIds && createDto.capabilityIds.length > 0) {
@@ -106,6 +107,7 @@ export class RolesService {
       name: updateDto.name,
       description: updateDto.description,
       prompt: updateDto.prompt,
+      group: updateDto.group,
       isActive: updateDto.isActive,
     });
 

@@ -5,6 +5,7 @@ const CreateRoleSchema = z.object({
   name: z.string().min(1).max(100).describe('角色名称'),
   description: z.string().min(1).describe('角色描述'),
   prompt: z.string().min(1).describe('角色提示词'),
+  group: z.string().min(0).max(100).describe('角色分组'),
   capabilityIds: z.array(z.uuid()).default([]).describe('关联的能力ID列表'),
 });
 
@@ -12,6 +13,7 @@ const UpdateRoleSchema = z.object({
   name: z.string().min(1).max(100).optional().describe('角色名称'),
   description: z.string().min(1).optional().describe('角色描述'),
   prompt: z.string().min(1).optional().describe('角色提示词'),
+  group: z.string().min(0).max(100).optional().describe('角色分组'),
   isActive: z.boolean().optional().describe('是否激活'),
   capabilityIds: z
     .array(z.string().uuid())
@@ -25,7 +27,13 @@ const RoleIdSchema = z.object({
 
 const ListRolesSchema = z.object({
   page: z.number().int().positive().default(1).describe('页码'),
-  limit: z.number().int().positive().max(100).default(10).describe('每页数量'),
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .max(10000)
+    .default(10)
+    .describe('每页数量'),
   search: z.string().optional().describe('搜索关键词'),
 });
 

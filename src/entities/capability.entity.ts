@@ -30,6 +30,10 @@ export class CapabilityEntity {
   @Column({ type: 'text', comment: '能力提示词' })
   prompt: string;
 
+  /** 能力分组 */
+  @Column({ type: 'varchar', length: 100, comment: '能力分组', default: '' })
+  group: string;
+
   /** 能力是否激活 */
   @Column({ type: 'boolean', default: true, comment: '能力是否激活' })
   isActive: boolean;

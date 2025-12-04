@@ -9,6 +9,29 @@
       </h1>
     </div>
     <div class="flex items-center gap-6">
+      <nav class="flex space-x-4">
+        <router-link 
+          to="/" 
+          class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+          active-class="bg-gray-800 text-white"
+        >
+          控制台
+        </router-link>
+        <router-link 
+          to="/roles" 
+          class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+          active-class="bg-gray-800 text-white"
+        >
+          角色管理
+        </router-link>
+        <router-link 
+          to="/capabilities" 
+          class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+          active-class="bg-gray-800 text-white"
+        >
+          能力管理
+        </router-link>
+      </nav>
       <div class="flex items-center gap-2 text-sm text-green-400 bg-green-400/10 px-3 py-1 rounded-full">
         <div class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
         系统心跳正常

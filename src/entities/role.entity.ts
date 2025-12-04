@@ -31,6 +31,10 @@ export class RoleEntity {
   @Column({ type: 'text', comment: '角色提示词' })
   prompt: string;
 
+  /** 角色分组 */
+  @Column({ type: 'varchar', length: 100, comment: '角色分组', default: '' })
+  group: string;
+
   /** 角色是否激活 */
   @Column({ type: 'boolean', default: true, comment: '角色是否激活' })
   isActive: boolean;
