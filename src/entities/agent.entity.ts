@@ -1,41 +1,64 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToMany, JoinTable, OneToMany } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToMany,
+  JoinTable,
+  OneToMany,
+} from 'typeorm';
 import { RoleEntity } from './role.entity';
 import { TimelineEventEntity } from './timeline-event.entity';
 
-@Entity('agents')
+/**
+ * Agent实体
+ * 为解决特定问题而创建的解决方案，可以包含多个角色
+ */
+@Entity('agents', { comment: 'AI代理表' })
 export class AgentEntity {
+  /** Agent唯一标识符 */
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', length: 100, unique: true })
+  /** Agent名称，唯一 */
+  @Column({ type: 'varchar', length: 100, unique: true, comment: 'Agent名称' })
   name: string;
 
-  @Column({ type: 'text' })
+  /** Agent描述 */
+  @Column({ type: 'text', comment: 'Agent描述' })
   description: string;
 
-  @Column({ type: 'text' })
+  /** Agent目标 */
+  @Column({ type: 'text', comment: 'Agent目标' })
   goal: string;
 
-  @Column({ type: 'jsonb', nullable: true })
+  /** Agent配置 */
+  @Column({ type: 'jsonb', nullable: true, comment: 'Agent配置' })
   config: Record<string, any>;
 
-  @Column({ type: 'boolean', default: true })
+  /** Agent是否激活 */
+  @Column({ type: 'boolean', default: true, comment: 'Agent是否激活' })
   isActive: boolean;
 
+  /** 关联的角色列表 */
   @ManyToMany(() => RoleEntity)
   @JoinTable({
     name: 'agent_roles',
     joinColumn: { name: 'agent_id', referencedColumnName: 'id' },
-    inverseJoinColumn: { name: 'role_id', referencedColumnName: 'id' }
+    inverseJoinColumn: { name: 'role_id', referencedColumnName: 'id' },
   })
   roles: RoleEntity[];
 
-  @OneToMany(() => TimelineEventEntity, event => event.agent)
+  /** 关联的时间线事件 */
+  @OneToMany(() => TimelineEventEntity, (event) => event.agent)
   timelineEvents: TimelineEventEntity[];
 
-  @CreateDateColumn()
+  /** 创建时间 */
+  @CreateDateColumn({ comment: '创建时间' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  /** 更新时间 */
+  @UpdateDateColumn({ comment: '更新时间' })
   updatedAt: Date;
 }

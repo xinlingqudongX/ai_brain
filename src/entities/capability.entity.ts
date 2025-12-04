@@ -8,29 +8,41 @@ import {
 } from 'typeorm';
 import { RoleEntity } from './role.entity';
 
-@Entity('capabilities')
+/**
+ * 能力实体
+ * 代表AI系统中的一项能力，如数据库操作、代码审查等
+ */
+@Entity('capabilities', { comment: 'AI能力表' })
 export class CapabilityEntity {
+  /** 能力唯一标识符 */
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', length: 100, unique: true })
+  /** 能力名称，唯一 */
+  @Column({ type: 'varchar', length: 100, unique: true, comment: '能力名称' })
   name: string;
 
-  @Column({ type: 'text' })
+  /** 能力描述 */
+  @Column({ type: 'text', comment: '能力描述' })
   description: string;
 
-  @Column({ type: 'text' })
+  /** 能力提示词，用于指导AI行为 */
+  @Column({ type: 'text', comment: '能力提示词' })
   prompt: string;
 
-  @Column({ type: 'boolean', default: true })
+  /** 能力是否激活 */
+  @Column({ type: 'boolean', default: true, comment: '能力是否激活' })
   isActive: boolean;
 
+  /** 关联的角色列表 */
   @ManyToMany(() => RoleEntity, (role) => role.capabilities)
   roles: RoleEntity[];
 
-  @CreateDateColumn()
+  /** 创建时间 */
+  @CreateDateColumn({ comment: '创建时间' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  /** 更新时间 */
+  @UpdateDateColumn({ comment: '更新时间' })
   updatedAt: Date;
 }

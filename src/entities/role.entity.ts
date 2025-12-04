@@ -9,23 +9,33 @@ import {
 } from 'typeorm';
 import { CapabilityEntity } from './capability.entity';
 
-@Entity('roles')
+/**
+ * 角色实体
+ * 代表AI系统中的一个角色，如DBA、开发人员等
+ */
+@Entity('roles', { comment: 'AI角色表' })
 export class RoleEntity {
+  /** 角色唯一标识符 */
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', length: 100, unique: true })
+  /** 角色名称，唯一 */
+  @Column({ type: 'varchar', length: 100, unique: true, comment: '角色名称' })
   name: string;
 
-  @Column({ type: 'text' })
+  /** 角色描述 */
+  @Column({ type: 'text', comment: '角色描述' })
   description: string;
 
-  @Column({ type: 'text' })
+  /** 角色提示词，用于指导AI行为 */
+  @Column({ type: 'text', comment: '角色提示词' })
   prompt: string;
 
-  @Column({ type: 'boolean', default: true })
+  /** 角色是否激活 */
+  @Column({ type: 'boolean', default: true, comment: '角色是否激活' })
   isActive: boolean;
 
+  /** 关联的能力列表 */
   @ManyToMany(() => CapabilityEntity, (capability) => capability.roles)
   @JoinTable({
     name: 'role_capabilities',
@@ -34,9 +44,11 @@ export class RoleEntity {
   })
   capabilities: CapabilityEntity[];
 
-  @CreateDateColumn()
+  /** 创建时间 */
+  @CreateDateColumn({ comment: '创建时间' })
   createdAt: Date;
 
-  @UpdateDateColumn()
+  /** 更新时间 */
+  @UpdateDateColumn({ comment: '更新时间' })
   updatedAt: Date;
 }
