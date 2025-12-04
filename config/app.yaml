@@ -1,0 +1,10 @@
+app:
+  name: AI Brain
+  version: 1.0.0
+  port: 3000
+  apiPrefix: /api/v1
+
+server:
+  fastify:
+    logger: true
+    bodyLimit: 10485760
