@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 暗黑风格滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* 抽屉动画 */
+.drawer-enter-active,
+.drawer-leave-active {
+  transition: transform 0.3s ease-in-out;
+}
+
+.drawer-enter-from,
+.drawer-leave-to {
+  transform: translateX(100%);
+}
+
+/* 流程图线 */
+.flow-line {
+  position: absolute;
+  top: 12px;
+  left: -2px;
+  width: 2px;
+  height: calc(100% - 20px);
+  background: #3b82ff;
+}
+
+.flow-line-success {
+  background: #10b981;
+}
+
+.flow-line-error {
+  background: #ef4444;
+}
