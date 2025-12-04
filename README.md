@@ -142,10 +142,25 @@ Other configurations are managed in YAML files:
 UNLICENSED
 
 
-## API Documentation
+## Access Points
 
 After starting the application, you can access:
+- **Frontend UI**: http://localhost:3000 (CIIA 智能交互控制台)
 - **REST API**: http://localhost:3000/api/v1
 - **Swagger UI**: http://localhost:3000/api-docs (Interactive API documentation)
 
-The Swagger UI provides a complete interactive interface to test all API endpoints.
+## Frontend Development
+
+The project includes a Vue 3 frontend application:
+
+```bash
+# Development mode
+cd frontend
+npm install
+npm run dev
+
+# Build for production
+npm run build
+```
+
+See [frontend/README.md](frontend/README.md) and [docs/前端开发指南.md](docs/前端开发指南.md) for details.
