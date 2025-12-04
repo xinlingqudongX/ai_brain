@@ -18,6 +18,11 @@
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": false,
     "strictBindCallApply": false,
-    "noFallthroughCasesInSwitch": false
-  }
+    "noFallthroughCasesInSwitch": false,
+    "paths": {
+      "src/*": ["./src/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.yaml", "src/**/*.yml", "src/**/*.proto"],
+  "exclude": ["node_modules", "dist"]
 }

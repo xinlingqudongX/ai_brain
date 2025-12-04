@@ -5,7 +5,7 @@ import {
   CreateCapabilityDto,
   UpdateCapabilityBodyDto,
   CapabilityIdDto,
-  ListCapabilitiesDto
+  ListCapabilitiesDto,
 } from './dto/capability.dto';
 
 @ApiTags('能力管理')
@@ -23,14 +23,20 @@ export class CapabilitiesController {
   }
 
   @Post('action/list')
-  @ApiOperation({ summary: '查询能力列表', description: '分页查询能力列表，支持搜索' })
+  @ApiOperation({
+    summary: '查询能力列表',
+    description: '分页查询能力列表，支持搜索',
+  })
   @ApiResponse({ status: 200, description: '查询成功' })
   async findAll(@Body() query: ListCapabilitiesDto) {
     return await this.capabilitiesService.findAll(query);
   }
 
   @Post('action/get')
-  @ApiOperation({ summary: '获取能力详情', description: '根据ID获取能力详细信息及关联的角色' })
+  @ApiOperation({
+    summary: '获取能力详情',
+    description: '根据ID获取能力详细信息及关联的角色',
+  })
   @ApiResponse({ status: 200, description: '查询成功' })
   @ApiResponse({ status: 404, description: '能力不存在' })
   async findOne(@Body() params: CapabilityIdDto) {

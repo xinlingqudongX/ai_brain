@@ -1,19 +1,27 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like } from 'typeorm';
 import { CapabilityEntity } from '../../entities/capability.entity';
-import { CreateCapabilityDto, UpdateCapabilityDto, ListCapabilitiesDto } from './dto/capability.dto';
+import {
+  CreateCapabilityDto,
+  UpdateCapabilityDto,
+  ListCapabilitiesDto,
+} from './dto/capability.dto';
 
 @Injectable()
 export class CapabilitiesService {
   constructor(
     @InjectRepository(CapabilityEntity)
-    private capabilityRepository: Repository<CapabilityEntity>
+    private capabilityRepository: Repository<CapabilityEntity>,
   ) {}
 
   async create(createDto: CreateCapabilityDto): Promise<CapabilityEntity> {
     const existing = await this.capabilityRepository.findOne({
-      where: { name: createDto.name }
+      where: { name: createDto.name },
     });
 
     if (existing) {
@@ -34,7 +42,7 @@ export class CapabilitiesService {
       where,
       skip,
       take: limit,
-      order: { createdAt: 'DESC' }
+      order: { createdAt: 'DESC' },
     });
 
     return {
@@ -42,14 +50,14 @@ export class CapabilitiesService {
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit)
+      totalPages: Math.ceil(total / limit),
     };
   }
 
   async findOne(id: string): Promise<CapabilityEntity> {
     const capability = await this.capabilityRepository.findOne({
       where: { id },
-      relations: ['roles']
+      relations: ['roles'],
     });
 
     if (!capability) {
@@ -59,12 +67,15 @@ export class CapabilitiesService {
     return capability;
   }
 
-  async update(id: string, updateDto: UpdateCapabilityDto): Promise<CapabilityEntity> {
+  async update(
+    id: string,
+    updateDto: UpdateCapabilityDto,
+  ): Promise<CapabilityEntity> {
     const capability = await this.findOne(id);
 
     if (updateDto.name && updateDto.name !== capability.name) {
       const existing = await this.capabilityRepository.findOne({
-        where: { name: updateDto.name }
+        where: { name: updateDto.name },
       });
       if (existing) {
         throw new ConflictException('Capability with this name already exists');

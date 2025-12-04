@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like, In } from 'typeorm';
 import { RoleEntity } from '../../entities/role.entity';
@@ -11,12 +15,12 @@ export class RolesService {
     @InjectRepository(RoleEntity)
     private roleRepository: Repository<RoleEntity>,
     @InjectRepository(CapabilityEntity)
-    private capabilityRepository: Repository<CapabilityEntity>
+    private capabilityRepository: Repository<CapabilityEntity>,
   ) {}
 
   async create(createDto: CreateRoleDto): Promise<RoleEntity> {
     const existing = await this.roleRepository.findOne({
-      where: { name: createDto.name }
+      where: { name: createDto.name },
     });
 
     if (existing) {
@@ -26,12 +30,12 @@ export class RolesService {
     const role = this.roleRepository.create({
       name: createDto.name,
       description: createDto.description,
-      prompt: createDto.prompt
+      prompt: createDto.prompt,
     });
 
     if (createDto.capabilityIds && createDto.capabilityIds.length > 0) {
       const capabilities = await this.capabilityRepository.findBy({
-        id: In(createDto.capabilityIds)
+        id: In(createDto.capabilityIds),
       });
       role.capabilities = capabilities;
     }
@@ -50,7 +54,7 @@ export class RolesService {
       skip,
       take: limit,
       relations: ['capabilities'],
-      order: { createdAt: 'DESC' }
+      order: { createdAt: 'DESC' },
     });
 
     return {
@@ -58,14 +62,14 @@ export class RolesService {
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit)
+      totalPages: Math.ceil(total / limit),
     };
   }
 
   async findOne(id: string): Promise<RoleEntity> {
     const role = await this.roleRepository.findOne({
       where: { id },
-      relations: ['capabilities']
+      relations: ['capabilities'],
     });
 
     if (!role) {
@@ -80,7 +84,7 @@ export class RolesService {
 
     if (updateDto.name && updateDto.name !== role.name) {
       const existing = await this.roleRepository.findOne({
-        where: { name: updateDto.name }
+        where: { name: updateDto.name },
       });
       if (existing) {
         throw new ConflictException('Role with this name already exists');
@@ -90,7 +94,7 @@ export class RolesService {
     if (updateDto.capabilityIds !== undefined) {
       if (updateDto.capabilityIds.length > 0) {
         const capabilities = await this.capabilityRepository.findBy({
-          id: In(updateDto.capabilityIds)
+          id: In(updateDto.capabilityIds),
         });
         role.capabilities = capabilities;
       } else {
@@ -102,7 +106,7 @@ export class RolesService {
       name: updateDto.name,
       description: updateDto.description,
       prompt: updateDto.prompt,
-      isActive: updateDto.isActive
+      isActive: updateDto.isActive,
     });
 
     return await this.roleRepository.save(role);

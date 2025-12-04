@@ -5,7 +5,7 @@ import {
   CreateRoleDto,
   UpdateRoleBodyDto,
   RoleIdDto,
-  ListRolesDto
+  ListRolesDto,
 } from './dto/role.dto';
 
 @ApiTags('角色管理')
@@ -14,7 +14,10 @@ export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 
   @Post('action/create')
-  @ApiOperation({ summary: '创建角色', description: '创建一个新的角色并可选关联能力' })
+  @ApiOperation({
+    summary: '创建角色',
+    description: '创建一个新的角色并可选关联能力',
+  })
   @ApiResponse({ status: 201, description: '角色创建成功' })
   @ApiResponse({ status: 400, description: '参数验证失败' })
   @ApiResponse({ status: 409, description: '角色名称已存在' })
@@ -23,14 +26,20 @@ export class RolesController {
   }
 
   @Post('action/list')
-  @ApiOperation({ summary: '查询角色列表', description: '分页查询角色列表，支持搜索' })
+  @ApiOperation({
+    summary: '查询角色列表',
+    description: '分页查询角色列表，支持搜索',
+  })
   @ApiResponse({ status: 200, description: '查询成功' })
   async findAll(@Body() query: ListRolesDto) {
     return await this.rolesService.findAll(query);
   }
 
   @Post('action/get')
-  @ApiOperation({ summary: '获取角色详情', description: '根据ID获取角色详细信息及关联的能力' })
+  @ApiOperation({
+    summary: '获取角色详情',
+    description: '根据ID获取角色详细信息及关联的能力',
+  })
   @ApiResponse({ status: 200, description: '查询成功' })
   @ApiResponse({ status: 404, description: '角色不存在' })
   async findOne(@Body() params: RoleIdDto) {
@@ -38,7 +47,10 @@ export class RolesController {
   }
 
   @Post('action/update')
-  @ApiOperation({ summary: '更新角色', description: '更新角色信息和关联的能力' })
+  @ApiOperation({
+    summary: '更新角色',
+    description: '更新角色信息和关联的能力',
+  })
   @ApiResponse({ status: 200, description: '更新成功' })
   @ApiResponse({ status: 404, description: '角色不存在' })
   @ApiResponse({ status: 409, description: '角色名称已存在' })

@@ -8,6 +8,6 @@ import { CapabilityEntity } from '../../entities/capability.entity';
   imports: [TypeOrmModule.forFeature([CapabilityEntity])],
   controllers: [CapabilitiesController],
   providers: [CapabilitiesService],
-  exports: [CapabilitiesService]
+  exports: [CapabilitiesService],
 })
 export class CapabilitiesModule {}

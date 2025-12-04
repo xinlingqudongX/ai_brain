@@ -5,10 +5,7 @@ const CreateRoleSchema = z.object({
   name: z.string().min(1).max(100).describe('角色名称'),
   description: z.string().min(1).describe('角色描述'),
   prompt: z.string().min(1).describe('角色提示词'),
-  capabilityIds: z
-    .array(z.string().uuid())
-    .default([])
-    .describe('关联的能力ID列表'),
+  capabilityIds: z.array(z.uuid()).default([]).describe('关联的能力ID列表'),
 });
 
 const UpdateRoleSchema = z.object({
@@ -23,7 +20,7 @@ const UpdateRoleSchema = z.object({
 });
 
 const RoleIdSchema = z.object({
-  id: z.string().uuid().describe('角色ID'),
+  id: z.uuid().describe('角色ID'),
 });
 
 const ListRolesSchema = z.object({

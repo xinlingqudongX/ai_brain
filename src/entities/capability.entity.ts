@@ -1,4 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToMany } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToMany,
+} from 'typeorm';
 import { RoleEntity } from './role.entity';
 
 @Entity('capabilities')
@@ -18,7 +25,7 @@ export class CapabilityEntity {
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
-  @ManyToMany(() => RoleEntity, role => role.capabilities)
+  @ManyToMany(() => RoleEntity, (role) => role.capabilities)
   roles: RoleEntity[];
 
   @CreateDateColumn()

@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { APP_PIPE } from '@nestjs/core';
@@ -12,6 +11,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { RolesModule } from './modules/roles/roles.module';
 import { CapabilitiesModule } from './modules/capabilities/capabilities.module';
+import { ProvidersModule } from './modules/providers/providers.module';
 
 const loadYamlConfig = (filename: string): Record<string, any> => {
   const filePath = path.join(process.cwd(), 'config', filename);
@@ -21,44 +21,30 @@ const loadYamlConfig = (filename: string): Record<string, any> => {
   return {};
 };
 
+const envName = process.env.NODE_ENV || 'development';
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       load: [
         () => ({
-          ...loadYamlConfig('app.yaml'),
-          ...loadYamlConfig('database.yaml')
-        })
-      ]
+          ...loadYamlConfig(`${envName}.yaml`),
+        }),
+      ],
     }),
-    TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get('database.host'),
-        port: configService.get('database.port'),
-        username: configService.get('database.username'),
-        password: configService.get('database.password'),
-        database: configService.get('database.database'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: configService.get('database.synchronize'),
-        logging: configService.get('database.logging')
-      }),
-      inject: [ConfigService]
-    }),
+    ProvidersModule,
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
     RolesModule,
-    CapabilitiesModule
+    CapabilitiesModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
     {
       provide: APP_PIPE,
-      useClass: ZodValidationPipe
-    }
+      useClass: ZodValidationPipe,
+    },
   ],
 })
 export class AppModule {}
