@@ -11,6 +11,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { RolesModule } from './modules/roles/roles.module';
 import { CapabilitiesModule } from './modules/capabilities/capabilities.module';
+import { AgentsModule } from './modules/agents/agents.module';
+import { TimelineModule } from './modules/timeline/timeline.module';
 import { ProvidersModule } from './modules/providers/providers.module';
 
 const loadYamlConfig = (filename: string): Record<string, any> => {
@@ -37,6 +39,8 @@ const envName = process.env.NODE_ENV || 'development';
     ScheduleModule.forRoot(),
     RolesModule,
     CapabilitiesModule,
+    AgentsModule,
+    TimelineModule,
   ],
   controllers: [AppController],
   providers: [

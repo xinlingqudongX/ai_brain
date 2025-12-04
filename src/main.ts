@@ -28,6 +28,8 @@ async function bootstrap() {
     .setVersion('1.0')
     .addTag('角色管理', '管理 AI 角色及其关联的能力')
     .addTag('能力管理', '管理 AI 能力')
+    .addTag('Agent管理', '管理 Agent 综合解决方案')
+    .addTag('时间线管理', '管理定时和周期性事件通知')
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api-docs', app, document);

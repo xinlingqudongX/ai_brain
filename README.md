@@ -14,10 +14,13 @@ AI Brain - A NestJS-based platform for managing AI roles and capabilities. This 
 
 - **Role Management**: Create and manage AI roles with custom prompts
 - **Capability System**: Define reusable capabilities that can be assigned to roles
+- **Agent Solution**: Comprehensive agent system that combines multiple roles
+- **Timeline Notifier**: Schedule and automate agent execution with timeline events
 - **Fastify Integration**: High-performance HTTP server
 - **TypeORM + PostgreSQL**: Robust database layer
 - **Zod Validation**: Type-safe request validation
 - **YAML Configuration**: Flexible configuration management
+- **Event-Driven**: Built-in event system for agent lifecycle management
 
 ## Tech Stack
 
@@ -89,7 +92,9 @@ $ npm run test:cov
 
 ## API Documentation
 
-See [docs/API.md](docs/API.md) for detailed API documentation.
+- [API Reference](docs/API.md) - Complete API documentation
+- [Agent & Timeline Guide](docs/AGENT_TIMELINE.md) - Agent and timeline features
+- [Swagger UI](docs/SWAGGER.md) - Interactive API documentation
 
 All APIs use POST requests with action-based routing (e.g., `/roles/action/create`).
 
