@@ -19,7 +19,11 @@ const loadYamlConfig = (filename: string): Record<string, any> => {
   return {};
 };
 
-const envName = process.env.NODE_ENV || 'development';
+if (!process.env.NODE_ENV) {
+  process.env.NODE_ENV = 'development';
+}
+
+const envName = process.env.NODE_ENV;
 @Module({
   imports: [
     ConfigModule.forRoot({

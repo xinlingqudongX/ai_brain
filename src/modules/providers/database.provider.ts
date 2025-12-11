@@ -5,13 +5,9 @@ import { ConfigService } from '@nestjs/config';
 export const databaseProviders = [
   TypeOrmModule.forRootAsync({
     useFactory: (configService: ConfigService) => ({
-      type: 'postgres',
-      host: configService.get('database.host'),
-      port: configService.get('database.port'),
-      username: configService.get('database.username'),
-      password: configService.get('database.password'),
+      type: 'better-sqlite3',
       database: configService.get('database.database'),
-      synchronize: configService.get('database.synchronize'),
+      synchronize: configService.get('database.synchronize') || false,
       logging: configService.get('database.logging'),
       maxQueryExecutionTime: 1000,
       entities: [join(__dirname, '../../**/*.entity{.ts,.js}')],
