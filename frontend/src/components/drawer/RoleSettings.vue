@@ -72,6 +72,7 @@ const props = defineProps<{
     subscribedEvents: string[];
     roleIds: string[];
   };
+  roleStore: any; // Receive roleStore as a prop
 }>();
 
 const emit = defineEmits(['update:modelValue']);
@@ -88,7 +89,31 @@ const finalPrompt = computed(() => {
     parts.push(`[SYSTEM] ${localData.value.prompt}`);
   }
   
-  parts.push('[CAPABILITIES] Available tools: ["messaging.send", "ordering_service.place_order", ...]');
+  // Dynamically generate capabilities based on selected roles
+  if (props.roleStore && localData.value.roleIds.length > 0) {
+    const selectedRoles = localData.value.roleIds
+      .map((id: string) => props.roleStore.roles.find((r: any) => r.id === id))
+      .filter(Boolean);
+      
+    if (selectedRoles.length > 0) {
+      const allCapabilities = selectedRoles.flatMap((role: any) => 
+        role.capabilities.map((cap: any) => `\"${cap.name}\": ${cap.description}`)
+      );
+      
+      // Remove duplicates
+      const uniqueCapabilities = [...new Set(allCapabilities)];
+      
+      if (uniqueCapabilities.length > 0) {
+        parts.push(`[CAPABILITIES] Available tools:\n${uniqueCapabilities.map((cap: string, index: number) => `  ${index + 1}. ${cap}`).join('\n')}`);
+      } else {
+        parts.push('[CAPABILITIES] Available tools: None');
+      }
+    } else {
+      parts.push('[CAPABILITIES] Available tools: None');
+    }
+  } else {
+    parts.push('[CAPABILITIES] Available tools: None');
+  }
   
   if (localData.value.subscribedEvents.length > 0) {
     parts.push(`[EVENTS] Subscribed to: ${localData.value.subscribedEvents.join(', ')}`);

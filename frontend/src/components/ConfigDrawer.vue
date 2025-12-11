@@ -41,11 +41,11 @@
         <!-- Content -->
         <div class="flex-1 overflow-y-auto p-6 grid grid-cols-12 gap-6">
           <!-- Column 1: Role Settings -->
-          <RoleSettings v-model="formData" class="col-span-12 lg:col-span-4" />
+          <RoleSettings v-model="formData" class="col-span-12 lg:col-span-4" :role-store="roleStore" />
 
-          <!-- Column 2: Capability Selection -->
-          <CapabilitySelection
-            v-model:selected-capabilities="selectedCapabilities"
+          <!-- Column 2: Role Selection -->
+          <RoleSelection
+            v-model:selected-roles="formData.roleIds"
             class="col-span-12 lg:col-span-4"
           />
 
@@ -63,8 +63,9 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
 import { useAgentStore } from '../stores/agent';
+import { useRoleStore } from '../stores/role';
 import RoleSettings from './drawer/RoleSettings.vue';
-import CapabilitySelection from './drawer/CapabilitySelection.vue';
+import RoleSelection from './drawer/RoleSelection.vue';
 import EventSubscriptions from './drawer/EventSubscriptions.vue';
 
 const props = defineProps<{
@@ -75,6 +76,7 @@ const props = defineProps<{
 const emit = defineEmits(['close', 'saved', 'update:visible']);
 
 const agentStore = useAgentStore();
+const roleStore = useRoleStore();
 const saving = ref(false);
 
 const formData = ref({
@@ -100,10 +102,6 @@ watch(() => props.agentId, async (newId) => {
         subscribedEvents: agentStore.currentAgent.subscribedEvents || [],
         roleIds: agentStore.currentAgent.roles.map(r => r.id),
       };
-      
-      // Extract capabilities from roles
-      selectedCapabilities.value = agentStore.currentAgent.roles
-        .flatMap(r => r.capabilities?.map(c => c.id) || []);
     }
   } else {
     // Reset form for new agent
@@ -115,7 +113,11 @@ watch(() => props.agentId, async (newId) => {
       subscribedEvents: [],
       roleIds: [],
     };
-    selectedCapabilities.value = [];
+  }
+  
+  // Ensure roles are loaded
+  if (roleStore.roles.length === 0) {
+    await roleStore.fetchRoles();
   }
 }, { immediate: true });
 

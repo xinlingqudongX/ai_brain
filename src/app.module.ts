@@ -9,10 +9,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { RolesModule } from './modules/roles/roles.module';
-import { CapabilitiesModule } from './modules/capabilities/capabilities.module';
-import { AgentsModule } from './modules/agents/agents.module';
-import { TimelineModule } from './modules/timeline/timeline.module';
 import { ProvidersModule } from './modules/providers/providers.module';
 
 const loadYamlConfig = (filename: string): Record<string, any> => {
@@ -28,6 +24,7 @@ const envName = process.env.NODE_ENV || 'development';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: `.env`,
       load: [
         () => ({
           ...loadYamlConfig(`${envName}.yaml`),
@@ -37,10 +34,6 @@ const envName = process.env.NODE_ENV || 'development';
     ProvidersModule,
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
-    RolesModule,
-    CapabilitiesModule,
-    AgentsModule,
-    TimelineModule,
   ],
   controllers: [AppController],
   providers: [
