@@ -3,5 +3,6 @@ import { SchedulerService } from './scheduler.service';
 
 @Module({
   providers: [SchedulerService],
+  exports: [SchedulerService],
 })
 export class SchedulerModule {}

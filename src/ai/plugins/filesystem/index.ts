@@ -4,13 +4,14 @@
  * Version: 2.0.0
  */
 
-import { PluginTool } from '../../core/plugin-manager';
+import type { PluginTool } from '../../core/plugin-manager';
 import { promises as fs } from 'fs';
 import { dirname } from 'path';
 import { DataSource, Repository } from 'typeorm';
 import { PluginEntity } from '../../../entities/plugin.entity';
 import { PluginUsageEntity } from '../../../entities/plugin_usage.entity';
 import { PluginRuntimeEntity } from '../../../entities/plugin_runtime.entity';
+
 
 // 调用记录接口
 interface CallRecord {

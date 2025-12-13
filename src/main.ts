@@ -7,6 +7,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { join } from 'path';
+import { getCorsConfig } from './config/cors.config';
 const PackageJson = require('../package.json');
 
 async function bootstrap() {
@@ -14,6 +15,10 @@ async function bootstrap() {
     AppModule,
     new FastifyAdapter({ logger: true }),
   );
+
+  // 配置CORS
+  const corsConfig = getCorsConfig();
+  await app.register(require('@fastify/cors'), corsConfig);
 
   // 配置静态文件服务
   app.useStaticAssets({
@@ -31,8 +36,9 @@ async function bootstrap() {
   // Swagger 配置
   const config = new DocumentBuilder()
     .setTitle('AI Brain API')
-    .setDescription('AI 角色和能力管理平台 API 文档')
-    .setVersion('1.0')
+    .setDescription('AI 智能聊天系统 API 文档')
+    .setVersion('2.0')
+    .addTag('聊天管理', '管理聊天会话和消息')
     .addTag('角色管理', '管理 AI 角色及其关联的能力')
     .addTag('能力管理', '管理 AI 能力')
     .addTag('Agent管理', '管理 Agent 综合解决方案')

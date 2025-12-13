@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { readdir, readFile, writeFile, unlink, mkdir, stat } from 'fs/promises';
 import { join, extname } from 'path';
+import { createRequire } from 'module';
 
 export interface PluginTool {
   name: string;
@@ -11,6 +12,19 @@ export interface PluginTool {
     description: string;
     required: boolean;
   }[];
+  inputSchema?: {
+    type: 'object';
+    properties: Record<
+      string,
+      {
+        type: string;
+        description?: string;
+      }
+    >;
+    required?: string[];
+    additionalProperties?: boolean;
+  };
+  argumentsType?: string;
   execute: (...args: any[]) => Promise<any>;
 }
 
@@ -36,14 +50,51 @@ export interface PluginConfig {
   tools: string[]; // 工具文件列表
 }
 
+export interface PluginModuleExports {
+  tools?: PluginTool[];
+  metadata?: {
+    id: string;
+    name: string;
+    description: string;
+    version: string;
+    category: string;
+  };
+  plugin?: {
+    metadata: {
+      id: string;
+      name: string;
+      description: string;
+      version: string;
+      category: string;
+    };
+    tools: PluginTool[];
+  };
+}
+
 @Injectable()
 export class PluginManager {
   private readonly logger = new Logger(PluginManager.name);
   private readonly pluginsPath = join(process.cwd(), 'src/ai/plugins');
   private readonly loadedPlugins = new Map<string, Plugin>();
+  private readonly require = createRequire(__filename);
+  private tsNodeRegistered = false;
 
   constructor() {
+    this.tryRegisterTsNode();
     void this.ensurePluginsDirectory();
+  }
+
+  private tryRegisterTsNode(): void {
+    if (this.tsNodeRegistered) return;
+    try {
+      // In Nest dev/watch, loading plugin source (.ts) is easiest via ts-node
+      // so that plugin modules can use normal TS/Node resolution.
+      this.require('ts-node/register/transpile-only');
+      this.tsNodeRegistered = true;
+    } catch {
+      // In production builds, ts-node may not be present; ignore.
+      this.tsNodeRegistered = false;
+    }
   }
 
   /**
@@ -141,32 +192,34 @@ export class PluginManager {
    */
   async loadPlugin(pluginId: string): Promise<Plugin> {
     const pluginDir = join(this.pluginsPath, pluginId);
-    const configPath = join(pluginDir, 'plugin.json');
 
     try {
-      // 读取插件配置
-      const configContent = await readFile(configPath, 'utf-8');
-      const config: PluginConfig = JSON.parse(configContent);
+      // 无 plugin.json 时使用统一插件标准：默认加载 index.ts/js，并从导出的 metadata/tools 构造
+      const entryPath = await this.resolvePluginEntry(pluginDir);
+      const pluginModule = this.loadPluginModule(entryPath);
 
-      // 加载主文件
-      const mainFilePath = join(pluginDir, config.main);
-      const pluginModule = await import(mainFilePath);
+      const meta = pluginModule.plugin?.metadata || pluginModule.metadata;
+      const tools = pluginModule.plugin?.tools || pluginModule.tools || [];
+      if (!meta) {
+        throw new Error(
+          'Plugin module missing metadata export (expected export const metadata = {...} or export const plugin = { metadata, tools })',
+        );
+      }
 
-      // 创建插件对象
-      const plugin: Plugin = {
-        id: config.id,
-        name: config.name,
-        description: config.description,
-        version: config.version,
-        category: config.category,
-        tools: pluginModule.tools || [],
+      const plugin = {
+        id: meta.id,
+        name: meta.name,
+        description: meta.description,
+        version: meta.version,
+        category: meta.category,
+        tools,
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
       this.loadedPlugins.set(pluginId, plugin);
-      this.logger.log(`Loaded plugin: ${config.name} (${pluginId})`);
+      this.logger.log(`Loaded plugin: ${plugin.name} (${pluginId})`);
 
       return plugin;
     } catch (error) {
@@ -203,6 +256,35 @@ export class PluginManager {
       this.logger.error(`Failed to load plugins: ${error.message}`);
       return [];
     }
+  }
+
+  private async pathExists(path: string): Promise<boolean> {
+    try {
+      await stat(path);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async resolvePluginEntry(pluginDir: string): Promise<string> {
+    const candidates = [
+      join(pluginDir, 'index.ts'),
+      join(pluginDir, 'index.js'),
+      join(pluginDir, 'main.ts'),
+      join(pluginDir, 'main.js'),
+    ];
+
+    for (const p of candidates) {
+      if (await this.pathExists(p)) return p;
+    }
+
+    // 兼容旧实现：尝试无扩展名
+    return join(pluginDir, 'index');
+  }
+
+  private loadPluginModule(modulePath: string): PluginModuleExports {
+    return this.require(modulePath) as PluginModuleExports;
   }
 
   /**
@@ -260,6 +342,18 @@ export class PluginManager {
       }
     }
     return tools;
+  }
+
+  /**
+   * 按名称查找工具
+   */
+  getToolByName(toolName: string): PluginTool | undefined {
+    for (const plugin of this.loadedPlugins.values()) {
+      if (!plugin.isActive) continue;
+      const tool = plugin.tools.find((t) => t.name === toolName);
+      if (tool) return tool;
+    }
+    return undefined;
   }
 
   /**

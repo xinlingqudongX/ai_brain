@@ -10,6 +10,7 @@ import * as path from 'path';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ProvidersModule } from './modules/providers/providers.module';
+import { LlmModule } from './modules/llm/llm.module';
 
 const loadYamlConfig = (filename: string): Record<string, any> => {
   const filePath = path.join(process.cwd(), 'config', filename);
@@ -38,6 +39,7 @@ const envName = process.env.NODE_ENV;
     ProvidersModule,
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
+    LlmModule,
   ],
   controllers: [AppController],
   providers: [

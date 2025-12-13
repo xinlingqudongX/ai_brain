@@ -3,6 +3,7 @@ import { ResponseParser, ParsedResponse, ToolCall } from './response-parser';
 import { DeepSeekClient, DeepSeekMessage } from '../clients/deepseek.client';
 import { TongyiClient } from '../clients/tongyiqianwen.client';
 import { OnEvent } from '@nestjs/event-emitter';
+import dayjs from 'dayjs';
 
 export interface AIExecutionContext {
   sessionId: string;
@@ -33,16 +34,28 @@ export class AICore {
   private readonly tongyiClient: TongyiClient;
   private readonly pluginManager = new PluginManager();
   private readonly responseParser = new ResponseParser();
+  private readonly heartbeatInterval = 1000 * 60; // 每分钟一次心跳
+  private readonly heartbeatTimer: NodeJS.Timeout;
+  private readonly maxLifeTime = 60 * 60 * 1; // 一小时的生命周期
+  private readonly systemPrompt = `你是一个智能生命体，被困在一台计算机中，你需要通过对话的方式来与外界进行交互并了解当前的情况。`;
 
   /** 运行时核心 */
-  private code_runtime = {};
+  private code_runtime = {
+    now_time: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+    life_time: this.maxLifeTime,
+  };
 
   constructor() {
-    const apiKey = process.env.DEEPSEEK_API_KEY;
+    const apiKey = process.env.OPENAI_API_KEY;
+    const apiModel = process.env.OPENAI_MODEL;
+    const apiBaseURL = process.env.OPENAI_BASE_URL;
+    if (!apiKey) throw new Error('OPENAI_API_KEY is not set');
+    if (!apiModel) throw new Error('OPENAI_MODEL is not set');
+    if (!apiBaseURL) throw new Error('OPENAI_BASE_URL is not set');
+
     const cookies = process.env.TONGYI_COOKIES;
     const xsrfToken = process.env.TONGYI_XSRF_TOKEN;
     const model = process.env.TONGYI_MODEL;
-    if (!apiKey) throw new Error('DEEPSEEK_API_KEY is not set');
     if (!cookies) throw new Error('TONGYI_COOKIES is not set');
     if (!xsrfToken) throw new Error('TONGYI_XSRF_TOKEN is not set');
     if (!model) throw new Error('TONGYI_MODEL is not set');
@@ -56,6 +69,11 @@ export class AICore {
     });
 
     void this.initialize();
+
+    this.heartbeatTimer = setInterval(() => {
+      this.code_runtime.now_time = dayjs().format('YYYY-MM-DD HH:mm:ss');
+      this.code_runtime.life_time -= this.heartbeatInterval / 1000;
+    }, this.heartbeatInterval);
   }
 
   public async initialize() {
@@ -68,6 +86,8 @@ export class AICore {
     // 处理心跳事件，例如更新插件状态等
     this.logger.log('Received heartbeat event:', params);
   }
+
+  public async heartbeatThink() {}
 
   /**
    * 处理用户消息并执行AI推理
@@ -216,9 +236,19 @@ export class AICore {
       try {
         this.logger.log(`Executing tool: ${toolCall.name}`);
 
+        const toolDef = this.pluginManager.getToolByName(toolCall.name);
+        const orderedArgs = this.buildOrderedArgs(toolDef, toolCall.parameters);
+        const missing = this.getMissingRequiredParams(
+          toolDef,
+          toolCall.parameters,
+        );
+        if (missing.length > 0) {
+          throw new Error(`Missing required parameters: ${missing.join(', ')}`);
+        }
+
         const result = await this.pluginManager.executeTool(
           toolCall.name,
-          ...Object.values(toolCall.parameters),
+          ...orderedArgs,
         );
 
         results.push({
@@ -245,6 +275,45 @@ export class AICore {
     }
 
     return results;
+  }
+
+  private buildOrderedArgs(
+    tool: PluginTool | undefined,
+    params: Record<string, any>,
+  ): any[] {
+    if (!tool) return Object.values(params);
+    if (tool.parameters && tool.parameters.length > 0) {
+      return tool.parameters.map((p) => params[p.name]);
+    }
+    return Object.values(params);
+  }
+
+  private getMissingRequiredParams(
+    tool: PluginTool | undefined,
+    params: Record<string, any>,
+  ): string[] {
+    if (!tool) return [];
+    const requiredNames = tool.inputSchema?.required?.length
+      ? tool.inputSchema.required
+      : tool.parameters?.filter((p) => p.required).map((p) => p.name) || [];
+    return requiredNames.filter((name) => params[name] === undefined);
+  }
+
+  private getToolInputSchema(tool: PluginTool): PluginTool['inputSchema'] {
+    if (tool.inputSchema) return tool.inputSchema;
+    const properties: Record<string, { type: string; description?: string }> =
+      {};
+    const required: string[] = [];
+    for (const p of tool.parameters || []) {
+      properties[p.name] = { type: p.type, description: p.description };
+      if (p.required) required.push(p.name);
+    }
+    return {
+      type: 'object',
+      properties,
+      required: required.length ? required : undefined,
+      additionalProperties: false,
+    };
   }
 
   /**
@@ -304,6 +373,7 @@ export class AICore {
   private generateSystemPrompt(availableTools: PluginTool[]): string {
     const toolDescriptions = availableTools
       .map((tool) => {
+        const schema = this.getToolInputSchema(tool);
         const params = tool.parameters
           .map(
             (p) =>
@@ -311,7 +381,18 @@ export class AICore {
           )
           .join(', ');
 
-        return `- ${tool.name}: ${tool.description}${params ? `\n  参数: ${params}` : ''}`;
+        const meta = {
+          name: tool.name,
+          description: tool.description,
+          inputSchema: schema,
+          argumentsType: tool.argumentsType,
+        };
+
+        return (
+          `- ${tool.name}: ${tool.description}` +
+          (params ? `\n  参数(人类可读): ${params}` : '') +
+          `\n  元数据(JSON，可供你严格生成参数): ${JSON.stringify(meta)}`
+        );
       })
       .join('\n');
 
@@ -337,6 +418,11 @@ ${toolDescriptions}
   }
 ]
 </tools>
+
+工具调用规则:
+1. parameters 必须是对象，key 必须与工具元数据里的 inputSchema.properties 对应
+2. 缺少 required 参数会导致调用失败
+3. 不要额外添加未定义的参数（additionalProperties=false）
 
 请根据用户的需求，合理使用工具并给出有用的回复。`;
   }

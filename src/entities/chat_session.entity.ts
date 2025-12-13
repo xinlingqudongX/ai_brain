@@ -1,6 +1,6 @@
 import { Column, Entity, PrimaryColumn, PrimaryGeneratedColumn } from 'typeorm';
 
-@Entity({ name: 'session', comment: '会话表' })
+@Entity({ name: 'chat_session', comment: '会话表' })
 export class SessionEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;

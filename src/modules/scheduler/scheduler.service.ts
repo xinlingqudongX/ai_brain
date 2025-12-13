@@ -9,6 +9,7 @@ export class SchedulerService {
 
   @Cron('*/1 * * * * *')
   public handleHeartbeat() {
+    console.log('Sending heartbeat...');
     this.eventEmitter.emit('life.heartbeat', new HeartbeatEvent(new Date()));
   }
 }

@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-main text-gray-100 font-sans antialiased h-screen overflow-hidden flex flex-col">
+  <div class="h-screen overflow-hidden">
     <router-view />
   </div>
 </template>

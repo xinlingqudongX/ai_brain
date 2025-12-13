@@ -164,3 +164,7 @@ npm run build
 ```
 
 See [frontend/README.md](frontend/README.md) and [docs/前端开发指南.md](docs/前端开发指南.md) for details.
+
+
+#### 流程图
+![alt text](image.png)
