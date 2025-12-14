@@ -32,6 +32,15 @@ export interface DeepSeekResponse {
   };
 }
 
+/** 官方建议的温度 */
+export const DeepSeekTemperature = {
+  代码生成: 0,
+  数据抽取分析: 1.0,
+  通用对话: 1.3,
+  翻译: 1.3,
+  诗歌和创意类写作: 1.3,
+} as const;
+
 export class DeepSeekClient {
   private readonly logger = console;
   private readonly client: OpenAI;

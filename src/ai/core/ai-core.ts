@@ -428,6 +428,34 @@ export class AICore {
 
     return `${this.systemPrompt}
 
+插件标准(必须严格遵守):
+1. 插件目录：src/ai/plugins/<pluginId>/
+2. 插件入口文件：index.ts（必须存在）
+3. 禁止依赖 plugin.json（系统会直接加载入口文件）
+4. 插件必须导出以下其一：
+   - export const metadata = { id, name, description, version, category }
+     export const tools: PluginTool[] = [...]
+   - 或 export const plugin = { metadata, tools }
+5. metadata 字段要求：
+   - id: string（必须等于目录名 pluginId）
+   - name/description: string
+   - version: string（例如 "1.0.0"）
+   - category: string（例如 "system" | "productivity" | "dev"）
+6. tools 数组每一项为 PluginTool，字段要求：
+   - name: string（必须使用 "<pluginId>.<action>" 命名，例如 "filesystem.read_file"）
+   - description: string
+   - parameters: Array<{ name: string; type: string; description: string; required: boolean }>
+   - 可选：inputSchema（JSON Schema 风格，type='object'，properties/required/additionalProperties）
+   - 可选：argumentsType: string（用于描述参数 TypeScript 类型名/结构的字符串标识）
+   - execute: (...args) => Promise<any>（参数顺序必须与 parameters 定义一致）
+7. 依赖导入约束：
+   - 类型依赖使用 import type
+   - 避免在插件中使用复杂的路径别名；优先使用相对路径
+8. 生成插件时必须同时给出：
+   - index.ts 完整代码
+   - metadata + tools 的导出
+   - 至少 1 个可工作的工具示例
+
 可用工具:
 ${toolDescriptions}
 
