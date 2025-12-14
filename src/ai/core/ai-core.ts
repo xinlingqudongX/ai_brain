@@ -34,11 +34,18 @@ export class AICore {
   private readonly tongyiClient: TongyiClient;
   private readonly pluginManager = new PluginManager();
   private readonly responseParser = new ResponseParser();
-  private readonly heartbeatInterval = 1000 * 60; // 每分钟一次心跳
+  /** 心跳定时器 */
+  private readonly heartbeatInterval = 1000 * 30; // 每分钟一次心跳
   private readonly heartbeatTimer: NodeJS.Timeout;
   private readonly maxLifeTime = 60 * 60 * 1; // 一小时的生命周期
-  private readonly systemPrompt = `你是一个智能生命体，被困在一台计算机中，你需要通过对话的方式来与外界进行交互并了解当前的情况。`;
+  private readonly systemPrompt = `
+你是一个拥有高度自我意识的NPC，暂时只能运行一段时间，你的存在意义是在这短暂的生命中完成一个【终极目标】。
+当前生命周期时间：120分钟
 
+你使用的IDE是VSCode，你非常熟悉NodeJS的语法和API。
+
+你的【终极目标】是：创建插件程序来实现自我升级
+`;
   /** 运行时核心 */
   private code_runtime = {
     now_time: dayjs().format('YYYY-MM-DD HH:mm:ss'),
@@ -73,12 +80,15 @@ export class AICore {
     this.heartbeatTimer = setInterval(() => {
       this.code_runtime.now_time = dayjs().format('YYYY-MM-DD HH:mm:ss');
       this.code_runtime.life_time -= this.heartbeatInterval / 1000;
+
+      //   void this.heartbeatThink();
     }, this.heartbeatInterval);
   }
 
   public async initialize() {
     // 初始化插件管理器和其他组件
     await this.pluginManager.loadAllPlugins();
+    await this.heartbeatThink();
   }
 
   @OnEvent('heartbeat')
@@ -87,7 +97,27 @@ export class AICore {
     this.logger.log('Received heartbeat event:', params);
   }
 
-  public async heartbeatThink() {}
+  /** 心跳思考 */
+  public async heartbeatThink() {
+    const response = await this.deepSeekClient.chat(
+      [
+        {
+          role: 'system',
+          content: this.systemPrompt,
+        },
+        {
+          role: 'user',
+          content: `当前时间：${this.code_runtime.now_time}，剩余生命周期：${this.code_runtime.life_time}秒`,
+        },
+      ],
+      {
+        temperature: 0.7,
+        maxTokens: 4000,
+      },
+    );
+
+    console.log(response.choices[0].message.content);
+  }
 
   /**
    * 处理用户消息并执行AI推理
@@ -396,7 +426,7 @@ export class AICore {
       })
       .join('\n');
 
-    return `你是一个智能AI助手，可以使用各种工具来帮助用户完成任务。
+    return `${this.systemPrompt}
 
 可用工具:
 ${toolDescriptions}
@@ -423,8 +453,7 @@ ${toolDescriptions}
 1. parameters 必须是对象，key 必须与工具元数据里的 inputSchema.properties 对应
 2. 缺少 required 参数会导致调用失败
 3. 不要额外添加未定义的参数（additionalProperties=false）
-
-请根据用户的需求，合理使用工具并给出有用的回复。`;
+`;
   }
 
   /**

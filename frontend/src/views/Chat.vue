@@ -100,7 +100,7 @@
         </div>
 
         <!-- 消息列表 -->
-        <div ref="messagesContainer" class="messages-container">
+        <div ref="messagesContainer" class="messages-container" @scroll="handleScroll">
           <div v-if="loadingMessages" class="loading-messages">
             <div class="animate-pulse space-y-4">
               <div v-for="i in 3" :key="i" class="flex space-x-3">
@@ -162,6 +162,13 @@
               </div>
             </div>
           </div>
+
+          <!-- 滚动到底部按钮 -->
+          <div v-if="showScrollToBottom" class="scroll-to-bottom-btn" @click="scrollToBottom">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+            </svg>
+          </div>
         </div>
 
         <!-- 输入区域 -->
@@ -212,7 +219,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick, watch, onUnmounted } from 'vue'
 import { 
   PlusIcon, 
   ChatBubbleLeftRightIcon, 
@@ -238,6 +245,7 @@ const newMessage = ref('')
 
 const editingSession = ref<ChatSession | null>(null)
 const editSessionName = ref('')
+const showScrollToBottom = ref(false)
 
 // DOM 引用
 const messagesContainer = ref<HTMLElement>()
@@ -262,6 +270,13 @@ const groupedSessions = computed(() => {
 // 生命周期
 onMounted(() => {
   loadSessions()
+  // 监听窗口大小变化
+  window.addEventListener('resize', handleWindowResize)
+})
+
+onUnmounted(() => {
+  // 清理事件监听器
+  window.removeEventListener('resize', handleWindowResize)
 })
 
 // 监听当前会话变化
@@ -270,6 +285,24 @@ watch(currentSession, (newSession) => {
     loadMessages(newSession.id)
   }
 })
+
+// 窗口大小变化处理
+function handleWindowResize() {
+  // 延迟执行，确保DOM更新完成
+  setTimeout(() => {
+    scrollToBottom()
+  }, 100)
+}
+
+// 滚动处理
+function handleScroll() {
+  const container = messagesContainer.value
+  if (container) {
+    const { scrollTop, scrollHeight, clientHeight } = container
+    // 当用户不在底部时显示滚动到底部按钮
+    showScrollToBottom.value = scrollTop + clientHeight < scrollHeight - 100
+  }
+}
 
 // 方法
 async function loadSessions() {
@@ -323,6 +356,11 @@ async function sendMessage() {
   newMessage.value = ''
   adjustTextareaHeight()
 
+  // 检查用户是否在底部，如果是则自动滚动
+  const container = messagesContainer.value
+  const shouldAutoScroll = container ? 
+    (container.scrollTop + container.clientHeight >= container.scrollHeight - 100) : true
+
   try {
     sending.value = true
     isTyping.value = true
@@ -342,8 +380,11 @@ async function sendMessage() {
       sessions.value[sessionIndex].updatedAt = Date.now()
     }
 
+    // 等待DOM更新后滚动
     await nextTick()
-    scrollToBottom()
+    if (shouldAutoScroll) {
+      scrollToBottom()
+    }
   } catch (error) {
     console.error('发送消息失败:', error)
   } finally {
@@ -370,7 +411,11 @@ function adjustTextareaHeight() {
 function scrollToBottom() {
   const container = messagesContainer.value
   if (container) {
-    container.scrollTop = container.scrollHeight
+    // 使用 smooth 滚动，提供更好的用户体验
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: 'smooth'
+    })
   }
 }
 
@@ -495,12 +540,38 @@ function formatDateYMD(date: Date): string {
 
 <style scoped>
 .chat-container {
-  @apply flex h-screen bg-gray-900 text-white;
+  @apply flex bg-gray-900 text-white;
+  height: 100vh;
+  height: 100dvh; /* 动态视口高度，更好地处理移动端 */
+  overflow: hidden;
 }
 
 /* 左侧边栏 */
 .sidebar {
   @apply w-80 bg-gray-800 border-r border-gray-700 flex flex-col;
+  flex-shrink: 0; /* 防止侧边栏被压缩 */
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .sidebar {
+    @apply w-64;
+  }
+}
+
+@media (max-width: 640px) {
+  .chat-container {
+    @apply flex-col;
+  }
+  
+  .sidebar {
+    @apply w-full h-48 border-r-0 border-b border-gray-700;
+  }
+  
+  .chat-area {
+    @apply flex-1;
+    min-height: 0;
+  }
 }
 
 .sidebar-header {
@@ -578,6 +649,7 @@ function formatDateYMD(date: Date): string {
 /* 右侧聊天区域 */
 .chat-area {
   @apply flex-1 flex flex-col;
+  min-height: 0; /* 确保flex子元素可以收缩 */
 }
 
 .welcome-screen {
@@ -606,10 +678,12 @@ function formatDateYMD(date: Date): string {
 
 .chat-content {
   @apply flex-1 flex flex-col;
+  min-height: 0; /* 确保flex子元素可以收缩 */
 }
 
 .chat-header {
   @apply flex items-center justify-between p-4 border-b border-gray-700;
+  flex-shrink: 0; /* 防止头部被压缩 */
 }
 
 .chat-title h3 {
@@ -626,6 +700,50 @@ function formatDateYMD(date: Date): string {
 
 .messages-container {
   @apply flex-1 overflow-y-auto p-4;
+  min-height: 0; /* 确保可以滚动 */
+  /* 自定义滚动条样式 */
+  scrollbar-width: thin;
+  scrollbar-color: #4b5563 #1f2937;
+}
+
+.messages-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.messages-container::-webkit-scrollbar-track {
+  background: #1f2937;
+  border-radius: 3px;
+}
+
+.messages-container::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 3px;
+}
+
+.messages-container::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* 滚动到底部按钮 */
+.scroll-to-bottom-btn {
+  @apply fixed bottom-24 right-6 w-10 h-10 bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center cursor-pointer shadow-lg transition-all duration-200 z-10;
+  animation: fadeInUp 0.3s ease-out;
+}
+
+.scroll-to-bottom-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .loading-messages {
@@ -662,6 +780,9 @@ function formatDateYMD(date: Date): string {
 
 .message-text {
   @apply bg-gray-700 rounded-lg px-4 py-2 inline-block max-w-full;
+  word-wrap: break-word;
+  word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .user-message .message-text {
@@ -714,6 +835,7 @@ function formatDateYMD(date: Date): string {
 
 .input-area {
   @apply p-4 border-t border-gray-700;
+  flex-shrink: 0; /* 防止输入区域被压缩 */
 }
 
 .input-container {

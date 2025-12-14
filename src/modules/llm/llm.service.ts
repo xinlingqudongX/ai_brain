@@ -1,18 +1,23 @@
-import { Injectable, Logger, OnModuleInit, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { AICore } from '../../ai/core/ai-core';
 import { SessionEntity } from '../../entities/chat_session.entity';
 import { ChatMessageEntity } from '../../entities/chat_message.entity';
-import { 
-  SendMessageDto, 
-  CreateSessionDto, 
+import {
+  SendMessageDto,
+  CreateSessionDto,
   UpdateSessionDto,
   GetSessionsQueryDto,
   GetMessagesQueryDto,
   ChatMessageResponse,
   ChatSessionResponse,
-  SendMessageResponse
+  SendMessageResponse,
 } from './dto/chat.dto';
 
 @Injectable()
@@ -41,7 +46,7 @@ export class LlmService implements OnModuleInit {
 
     // 检查会话是否存在
     const session = await this.sessionRepository.findOne({
-      where: { id: dto.sessionId }
+      where: { id: dto.sessionId },
     });
 
     if (!session) {
@@ -58,7 +63,9 @@ export class LlmService implements OnModuleInit {
 
     try {
       // 获取会话历史
-      const conversationHistory = await this.getConversationHistory(dto.sessionId);
+      const conversationHistory = await this.getConversationHistory(
+        dto.sessionId,
+      );
 
       // 调用AI Core处理消息
       const aiResult = await this.aiCore.processMessage(dto.message, {
@@ -90,10 +97,9 @@ export class LlmService implements OnModuleInit {
         executionTime,
         tokensUsed: aiResult.tokensUsed,
       };
-
     } catch (error) {
       this.logger.error(`AI处理消息失败: ${error.message}`, error.stack);
-      
+
       // 保存错误回复
       const errorMessage = this.messageRepository.create({
         session_id: dto.sessionId,
@@ -160,12 +166,12 @@ export class LlmService implements OnModuleInit {
     const sessionsWithStats = await Promise.all(
       sessions.map(async (session) => {
         const messageCount = await this.messageRepository.count({
-          where: { session_id: session.id }
+          where: { session_id: session.id },
         });
 
         const lastMessage = await this.messageRepository.findOne({
           where: { session_id: session.id },
-          order: { created_at: 'DESC' }
+          order: { created_at: 'DESC' },
         });
 
         return {
@@ -173,7 +179,7 @@ export class LlmService implements OnModuleInit {
           messageCount,
           lastMessage: lastMessage?.content?.substring(0, 100) || '',
         };
-      })
+      }),
     );
 
     return {
@@ -189,7 +195,7 @@ export class LlmService implements OnModuleInit {
    */
   async getSession(sessionId: string): Promise<ChatSessionResponse> {
     const session = await this.sessionRepository.findOne({
-      where: { id: sessionId }
+      where: { id: sessionId },
     });
 
     if (!session) {
@@ -202,9 +208,12 @@ export class LlmService implements OnModuleInit {
   /**
    * 更新会话
    */
-  async updateSession(sessionId: string, dto: UpdateSessionDto): Promise<ChatSessionResponse> {
+  async updateSession(
+    sessionId: string,
+    dto: UpdateSessionDto,
+  ): Promise<ChatSessionResponse> {
     const session = await this.sessionRepository.findOne({
-      where: { id: sessionId }
+      where: { id: sessionId },
     });
 
     if (!session) {
@@ -223,7 +232,7 @@ export class LlmService implements OnModuleInit {
    */
   async deleteSession(sessionId: string): Promise<void> {
     const session = await this.sessionRepository.findOne({
-      where: { id: sessionId }
+      where: { id: sessionId },
     });
 
     if (!session) {
@@ -232,7 +241,7 @@ export class LlmService implements OnModuleInit {
 
     // 删除会话相关的所有消息
     await this.messageRepository.delete({ session_id: sessionId });
-    
+
     // 删除会话
     await this.sessionRepository.delete({ id: sessionId });
   }
@@ -240,7 +249,10 @@ export class LlmService implements OnModuleInit {
   /**
    * 获取会话消息列表
    */
-  async getMessages(sessionId: string, query: GetMessagesQueryDto): Promise<{
+  async getMessages(
+    sessionId: string,
+    query: GetMessagesQueryDto,
+  ): Promise<{
     messages: ChatMessageResponse[];
     total: number;
     page: number;
@@ -251,7 +263,7 @@ export class LlmService implements OnModuleInit {
 
     // 检查会话是否存在
     const session = await this.sessionRepository.findOne({
-      where: { id: sessionId }
+      where: { id: sessionId },
     });
 
     if (!session) {
@@ -266,7 +278,7 @@ export class LlmService implements OnModuleInit {
     });
 
     return {
-      messages: messages.map(msg => this.formatMessageResponse(msg)),
+      messages: messages.map((msg) => this.formatMessageResponse(msg)),
       total,
       page,
       limit,
@@ -278,7 +290,7 @@ export class LlmService implements OnModuleInit {
    */
   async clearMessages(sessionId: string): Promise<void> {
     const session = await this.sessionRepository.findOne({
-      where: { id: sessionId }
+      where: { id: sessionId },
     });
 
     if (!session) {
@@ -291,7 +303,10 @@ export class LlmService implements OnModuleInit {
   /**
    * 获取会话的对话历史（用于AI上下文）
    */
-  private async getConversationHistory(sessionId: string, limit: number = 20): Promise<any[]> {
+  private async getConversationHistory(
+    sessionId: string,
+    limit: number = 20,
+  ): Promise<any[]> {
     const messages = await this.messageRepository.find({
       where: { session_id: sessionId },
       order: { created_at: 'DESC' },
@@ -299,18 +314,18 @@ export class LlmService implements OnModuleInit {
     });
 
     // 转换为AI Core需要的格式，并按时间正序排列
-    return messages
-      .reverse()
-      .map(msg => ({
-        role: msg.role,
-        content: msg.content,
-      }));
+    return messages.reverse().map((msg) => ({
+      role: msg.role,
+      content: msg.content,
+    }));
   }
 
   /**
    * 格式化消息响应
    */
-  private formatMessageResponse(message: ChatMessageEntity): ChatMessageResponse {
+  private formatMessageResponse(
+    message: ChatMessageEntity,
+  ): ChatMessageResponse {
     return {
       id: message.id,
       sessionId: message.session_id,
